@@ -2,13 +2,14 @@
 // Detects the current platform, loads the appropriate adapter,
 // and starts the MutationObserver to intercept posts.
 //
-// Phase 2 proof: logs extracted post text to console.
-// No detection pipeline runs yet — that's Phase 3+.
+// Phase 3: intercepted posts are run through Layer 1 detection pipeline.
+// Analysis results are logged to console.
 
 import { detectCurrentPlatform } from './platforms/adapter';
 import { TwitterAdapter } from './platforms/twitter';
 import { ContentInterceptor } from './interceptor';
 import { PostContent } from '../types/post';
+import { detect } from '../core/detector';
 
 function init(): void {
   const platform = detectCurrentPlatform();
@@ -27,14 +28,27 @@ function init(): void {
 }
 
 function onPostDetected(post: PostContent): void {
-  // Phase 2: just log the extracted text to prove interception works
-  console.log(`[FeelingWise] post intercepted on ${post.platform}:`, {
-    id: post.id,
+  const startTime = performance.now();
+  const techniques = detect(post.text, post.author, post.platform);
+  const processingTimeMs = performance.now() - startTime;
+
+  const detected = techniques.filter(t => t.present);
+
+  console.log(`[FeelingWise] Analysis Result`, {
+    postId: post.id,
     author: post.author,
-    text: post.text,
+    text: post.text.substring(0, 100),
+    techniques: detected.map(t => ({
+      name: t.technique,
+      severity: t.severity,
+      confidence: t.confidence,
+      evidence: t.evidence,
+    })),
+    totalTechniques: detected.length,
+    processingTimeMs: Math.round(processingTimeMs * 100) / 100,
   });
 
-  // Phase 3+: send to detection pipeline via chrome.runtime.sendMessage
+  // Phase 4+: send to Layer 2 verification via chrome.runtime.sendMessage
 }
 
 function resolveAdapter(platform: ReturnType<typeof detectCurrentPlatform>) {
