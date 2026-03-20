@@ -12,6 +12,18 @@
     "lint": "eslint src/ --ext .ts,.tsx",
     "package": "npm run build && cd dist && zip -r ../feelingwise.zip ."
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.82",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.38",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.1",
+    "vitest": "^4.1.0"
+  }
 }

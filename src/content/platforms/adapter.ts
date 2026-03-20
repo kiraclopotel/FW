@@ -1,7 +1,7 @@
 // FeelingWise - Platform adapter base interface
 // All platform adapters implement this contract
 
-import { PostContent, Platform } from "@types/post";
+import { PostContent, Platform } from "../../types/post";
 
 export interface PlatformAdapter {
   platform: Platform;
