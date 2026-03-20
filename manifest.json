@@ -4,11 +4,36 @@
   "version": "0.1.0",
   "description": "AI-powered content neutralizer. Neutralize, don't censor.",
   "permissions": ["activeTab", "storage", "sidePanel", "alarms"],
-  "host_permissions": ["*://*.twitter.com/*", "*://*.x.com/*", "*://*.instagram.com/*", "*://*.tiktok.com/*", "*://*.facebook.com/*", "*://*.youtube.com/*"],
+  "host_permissions": [
+    "*://*.twitter.com/*",
+    "*://*.x.com/*",
+    "*://*.instagram.com/*",
+    "*://*.tiktok.com/*",
+    "*://*.facebook.com/*",
+    "*://*.youtube.com/*"
+  ],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   },
-  "background": { "service_worker": "src/background/service-worker.ts", "type": "module" },
-  "content_scripts": [{"matches": ["*://*.twitter.com/*", "*://*.x.com/*", "*://*.instagram.com/*", "*://*.tiktok.com/*", "*://*.facebook.com/*", "*://*.youtube.com/*"], "js": ["src/content/index.ts"], "run_at": "document_idle"}],
-  "side_panel": { "default_path": "src/ui/sidepanel/index.html" }
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.twitter.com/*",
+        "*://*.x.com/*",
+        "*://*.instagram.com/*",
+        "*://*.tiktok.com/*",
+        "*://*.facebook.com/*",
+        "*://*.youtube.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  }
 }

@@ -1,2 +1,5 @@
-// FeelingWise - Neutralizer unit tests
-// TODO: Implement
+import { describe, it } from 'vitest';
+
+describe('neutralizer', () => {
+  it.todo('neutralizer — not yet implemented');
+});
