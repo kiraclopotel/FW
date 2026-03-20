@@ -21,7 +21,7 @@
       "@modes/*": ["./src/modes/*"],
       "@ui/*": ["./src/ui/*"],
       "@storage/*": ["./src/storage/*"],
-      "@types/*": ["./src/types/*"]
+      "@fw-types/*": ["./src/types/*"]
     }
   },
   "include": ["src/**/*"],
