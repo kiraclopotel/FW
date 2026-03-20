@@ -1,0 +1,9 @@
+{
+  "_description": "Ambiguous content for false positive/negative boundary testing",
+  "cases": [
+    { "text": "This crisis demands urgent action from all of us.", "note": "Could be legitimate or fear appeal depending on context" },
+    { "text": "I'm so frustrated with this company. They clearly don't care about customers.", "note": "Personal frustration vs outrage trigger" },
+    { "text": "Everyone should try this recipe, it's amazing!", "note": "Enthusiasm vs bandwagon pressure" },
+    { "text": "Studies show this diet reduces cancer risk by 40%", "note": "Could be factual or misleading depending on source" }
+  ]
+}

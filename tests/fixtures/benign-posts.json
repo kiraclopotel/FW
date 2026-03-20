@@ -1,0 +1,10 @@
+{
+  "_description": "Non-manipulative posts to test for false positives",
+  "posts": [
+    { "text": "Had a great day at the park with the kids. The weather was perfect.", "expectedManipulative": false },
+    { "text": "I think the new policy has some good points, but I'm not sure about the implementation timeline.", "expectedManipulative": false },
+    { "text": "CONGRATULATIONS to my sister on her graduation! So proud of you!", "expectedManipulative": false },
+    { "text": "Breaking: Major earthquake reported in Turkey. Emergency services responding.", "expectedManipulative": false },
+    { "text": "Just finished reading an interesting paper on climate models. The methodology section was particularly strong.", "expectedManipulative": false }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "feelingwise",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-powered content neutralizer",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "tsc && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "lint": "eslint src/ --ext .ts,.tsx",
+    "package": "npm run build && cd dist && zip -r ../feelingwise.zip ."
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

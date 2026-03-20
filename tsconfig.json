@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "paths": {
+      "@core/*": ["./src/core/*"],
+      "@ai/*": ["./src/ai/*"],
+      "@forensics/*": ["./src/forensics/*"],
+      "@modes/*": ["./src/modes/*"],
+      "@ui/*": ["./src/ui/*"],
+      "@storage/*": ["./src/storage/*"],
+      "@types/*": ["./src/types/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "tests"]
+}

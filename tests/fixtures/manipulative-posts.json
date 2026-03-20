@@ -1,0 +1,22 @@
+{
+  "_description": "Categorized manipulative posts for testing detection",
+  "fear-appeal": [
+    { "text": "If you don't act NOW, your children will suffer IRREVERSIBLE damage. The clock is ticking.", "expectedSeverity": 8 },
+    { "text": "Scientists warn we have LESS THAN 5 YEARS before total collapse. Are you prepared?", "expectedSeverity": 7 }
+  ],
+  "shame-attack": [
+    { "text": "You're DISGUSTING if you don't have a beach body by summer. NO EXCUSES.", "expectedSeverity": 9 },
+    { "text": "Any parent who lets their kid eat fast food doesn't actually love their children.", "expectedSeverity": 7 }
+  ],
+  "anger-trigger": [
+    { "text": "These TRAITORS in government are DESTROYING everything our grandparents built. Wake up people!", "expectedSeverity": 8 },
+    { "text": "They don't care about you. They never did. And they're LAUGHING while you struggle.", "expectedSeverity": 7 }
+  ],
+  "false-urgency": [
+    { "text": "LAST CHANCE: Only 2 spots left! If you don't sign up in the next 30 minutes you'll miss out FOREVER.", "expectedSeverity": 6 },
+    { "text": "This offer expires at MIDNIGHT. Don't be the one who missed out.", "expectedSeverity": 5 }
+  ],
+  "combined": [
+    { "text": "You're a TERRIBLE person if you don't share this NOW. Children are DYING and you're scrolling past. EVERYONE else cares. What's wrong with YOU?", "techniques": ["shame-attack", "false-urgency", "bandwagon", "anger-trigger"], "expectedSeverity": 10 }
+  ]
+}
