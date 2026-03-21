@@ -11,6 +11,7 @@ import { PlatformAdapter } from './platforms/adapter';
 import { process } from '../core/pipeline';
 import { getSettings } from '../storage/settings';
 import { injectIntoElement } from './injector';
+import { logForensicEvent } from '../forensics/logger';
 
 let activeAdapter: PlatformAdapter | null = null;
 
@@ -60,6 +61,16 @@ async function onPostDetected(post: PostContent): Promise<void> {
       },
       timestamp: new Date().toISOString(),
     }).catch(() => {}); // ignore if popup not open
+
+    // Forensic logging — non-blocking, failures don't affect neutralization
+    logForensicEvent(
+      post.text,
+      result.neutralized.rewrittenText,
+      result.neutralized.analysis,
+      settings.mode,
+      post.platform,
+      result.neutralized.aiSource,
+    ).catch(() => {});
 
     console.log(`[FeelingWise] ${result.action === 'flag' ? 'Flagged' : 'Neutralized'} post ${post.id}`);
   }
