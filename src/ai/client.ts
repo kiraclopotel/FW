@@ -120,7 +120,8 @@ async function callDeepSeek(system: string, user: string, apiKey: string, fast: 
       },
       body: JSON.stringify({
         model,
-        max_tokens: 1024,
+        max_tokens: 512,
+        temperature: 0.3,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: user },

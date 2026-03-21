@@ -50,6 +50,9 @@ export async function process(post: PostContent): Promise<PipelineResult> {
       return PASS;
     }
 
+    // Cache settings once — used for budget check and mode threshold below
+    const settings = await getSettings();
+
     // Step 1: Layer 1 — regex-based detection (fast, <5ms)
     const techniques: TechniqueResult[] = detect(post.text, post.author, post.platform);
     const detected = techniques.filter(t => t.present);
@@ -62,19 +65,8 @@ export async function process(post: PostContent): Promise<PipelineResult> {
     });
 
     // Step 2: Check budget before calling AI
-    const settings = await getSettings();
     if (settings.dailyCap > 0 && settings.totalChecksToday >= settings.dailyCap) {
       console.log(`[FeelingWise] Pipeline: PASS (daily cap reached)`);
-      return PASS;
-    }
-
-    // Step 3: Decide whether to send to AI
-    // Send to AI if: L1 triggered, OR Romanian, OR substantive text (all prose posts get analyzed)
-    // The old suspicion sampling was too restrictive — every substantive post should be checked
-    const hasL1Triggers = detected.length > 0;
-
-    if (!hasL1Triggers && !romanian && !isSubstantiveText(post.text)) {
-      console.log(`[FeelingWise] Pipeline: PASS (no triggers, not substantive)`);
       return PASS;
     }
 
