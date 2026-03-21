@@ -1,8 +1,9 @@
 // FeelingWise - Facebook platform adapter
 // Extracts post text via div[role="article"] selector
 
-import { PostContent } from '../../types/post';
+import { PostContent, FeedSource } from '../../types/post';
 import { PlatformAdapter } from './adapter';
+import { extractTextWithFallback } from './selector-chain';
 
 export class FacebookAdapter implements PlatformAdapter {
   readonly platform = 'facebook' as const;
@@ -17,6 +18,7 @@ export class FacebookAdapter implements PlatformAdapter {
 
   extractPosts(nodes: NodeList): PostContent[] {
     const posts: PostContent[] = [];
+    const feedSource = this._detectFeedSource();
 
     nodes.forEach((node) => {
       if (!(node instanceof HTMLElement)) return;
@@ -26,11 +28,10 @@ export class FacebookAdapter implements PlatformAdapter {
       for (const article of articles) {
         if (article.dataset.fwProcessed) continue;
 
-        const textEl = this._extractTextElement(article);
-        if (!textEl) continue;
+        const result = this._extractText(article);
+        if (!result) continue;
 
-        const text = textEl.textContent?.trim() ?? '';
-        if (!text || text.length < 20) continue;
+        const { element, text } = result;
 
         const author = this._extractAuthor(article);
         const postId = this._extractPostId(article) ?? crypto.randomUUID();
@@ -43,7 +44,8 @@ export class FacebookAdapter implements PlatformAdapter {
           author,
           timestamp: new Date().toISOString(),
           platform: 'facebook',
-          domRef: new WeakRef(textEl),
+          domRef: new WeakRef(element),
+          feedSource,
         });
       }
     });
@@ -79,45 +81,106 @@ export class FacebookAdapter implements PlatformAdapter {
     return results;
   }
 
-  private _extractTextElement(article: HTMLElement): HTMLElement | null {
-    // Prefer the ad-preview message container (reliable selector)
-    const adPreview = article.querySelector<HTMLElement>('div[data-ad-preview="message"]');
-    if (adPreview) return adPreview;
+  private _extractText(article: HTMLElement): { element: HTMLElement; text: string } | null {
+    // First try selector-chain utility for ad previews
+    const adResult = extractTextWithFallback(
+      article,
+      ['div[data-ad-preview="message"]'],
+      20,
+      'facebook-text',
+    );
+    if (adResult) return adResult;
 
-    // Fallback: find the deepest div[dir="auto"] with substantial text
+    // Fallback: manual search with comment/nested filtering
+    return this._extractTextElement(article);
+  }
+
+  private _isInCommentOrNested(el: HTMLElement, article: HTMLElement): boolean {
+    let current: HTMLElement | null = el.parentElement;
+    while (current && current !== article) {
+      // Inside a comment section
+      if (current.tagName === 'UL') return true;
+      // Inside a nested shared article
+      if (current.getAttribute('role') === 'article') return true;
+      // Inside complementary content
+      if (current.getAttribute('role') === 'complementary') return true;
+      current = current.parentElement;
+    }
+    return false;
+  }
+
+  private _extractTextElement(article: HTMLElement): { element: HTMLElement; text: string } | null {
     const candidates = article.querySelectorAll<HTMLElement>('div[dir="auto"]');
     let best: HTMLElement | null = null;
     let bestLen = 0;
 
-    candidates.forEach((el) => {
+    for (const el of candidates) {
+      if (this._isInCommentOrNested(el, article)) continue;
+
       const text = el.textContent?.trim() ?? '';
       if (text.length > 20 && text.length > bestLen) {
         best = el;
         bestLen = text.length;
       }
-    });
+    }
 
-    return best;
+    if (!best) return null;
+    return { element: best, text: best.textContent?.trim() ?? '' };
   }
 
   private _extractAuthor(article: HTMLElement): string {
-    // Author name is typically in a link with role="link" in the header area
-    const authorLink = article.querySelector<HTMLAnchorElement>(
-      'a[role="link"]'
-    );
-    return authorLink?.textContent?.trim() ?? 'unknown';
+    // Strategy 1: strong tag inside a link (common Facebook pattern for author names)
+    const strongLink = article.querySelector<HTMLElement>('a[role="link"] strong');
+    if (strongLink?.textContent?.trim()) {
+      return strongLink.textContent.trim();
+    }
+
+    // Strategy 2: first link in header area with a user-like href
+    const links = article.querySelectorAll<HTMLAnchorElement>('a[role="link"]');
+    for (const link of links) {
+      const href = link.getAttribute('href') ?? '';
+      // Match profile URLs: /username or /profile.php?id=
+      if (href.match(/^\/[a-zA-Z0-9.]+\/?$/) || href.includes('/profile.php?id=')) {
+        const text = link.textContent?.trim();
+        if (text && text.length > 0 && text.length < 50) {
+          return text;
+        }
+      }
+    }
+
+    return 'unknown';
   }
 
   private _extractPostId(article: HTMLElement): string | null {
-    // Look for links containing /posts/ or /permalink/
     const links = article.querySelectorAll<HTMLAnchorElement>('a[href]');
     for (const link of links) {
-      const postMatch = link.href.match(/\/posts\/(\w+)/);
+      const href = link.getAttribute('href') ?? '';
+
+      // /posts/ID
+      const postMatch = href.match(/\/posts\/(\w+)/);
       if (postMatch) return postMatch[1];
 
-      const permalinkMatch = link.href.match(/\/permalink\/(\w+)/);
+      // /permalink/ID
+      const permalinkMatch = href.match(/\/permalink\/(\w+)/);
       if (permalinkMatch) return permalinkMatch[1];
+
+      // story_fbid parameter
+      const storyMatch = href.match(/story_fbid=(\d+)/);
+      if (storyMatch) return storyMatch[1];
+
+      // /reel/ID
+      const reelMatch = href.match(/\/reel\/(\d+)/);
+      if (reelMatch) return reelMatch[1];
     }
     return null;
+  }
+
+  private _detectFeedSource(): FeedSource {
+    const path = window.location.pathname;
+    if (path.includes('/groups/')) return 'following';
+    if (path.includes('/watch')) return 'for-you';
+    if (path.includes('/profile') || path.match(/^\/[a-zA-Z0-9.]+\/?$/)) return 'profile';
+    if (path === '/' || path === '/home' || path === '') return 'unknown';
+    return 'unknown';
   }
 }
