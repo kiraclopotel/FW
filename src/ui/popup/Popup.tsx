@@ -386,6 +386,27 @@ function MainScreen({ settings, update, onSettings }: {
         ))}
       </div>
 
+      {/* View Dashboard button */}
+      <div style={{ padding: '0 16px 12px' }}>
+        <button
+          onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') })}
+          style={{
+            width: '100%',
+            padding: '8px 0',
+            fontSize: 12,
+            fontWeight: 500,
+            background: 'transparent',
+            color: C.muted,
+            border: `1px solid ${C.border}`,
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontFamily: font,
+          }}
+        >
+          View Dashboard
+        </button>
+      </div>
+
       {/* Settings link */}
       <div
         onClick={onSettings}
@@ -549,6 +570,23 @@ function SettingsScreen({ settings, update, onBack, onChangeKey }: {
             FeelingWise v0.1<br />
             {t('aboutText')}
           </div>
+          <button
+            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') })}
+            style={{
+              marginTop: 10,
+              padding: '6px 12px',
+              fontSize: 12,
+              fontWeight: 500,
+              background: 'transparent',
+              color: C.muted,
+              border: `1px solid ${C.border}`,
+              borderRadius: 4,
+              cursor: 'pointer',
+              fontFamily: font,
+            }}
+          >
+            Full Dashboard
+          </button>
         </div>
       </div>
     </div>
