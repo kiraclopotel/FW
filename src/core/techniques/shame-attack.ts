@@ -14,10 +14,25 @@ const PATTERNS: PatternSet = {
     /you should be (ashamed|embarrassed)/i,
     /you'?re just (uneducated|ignorant|stupid|dumb|blind|clueless)/i,
     /\bNO EXCUSES\b/,
+    // "fake person" / "fakeness" — character assassination
+    /\b(fake (person|human|people)|fakeness|phon(y|ey|ie)|fraud|charlatan|impostor)\b/i,
+    // "[person] is the [disliked-person] of [context]" — character assassination by comparison
+    /\bis (the|a|another|our|basically) .{0,20}(hitler|stalin|devil|satan|judas|antichrist|cancer|plague|disease)\b/i,
+    // "a version of [disliked person]" pattern
+    /\b(version|clone|copy|reincarnation) of\b.{0,20}\b(hitler|stalin|devil|satan|ceausescu|mao|mussolini)\b/i,
+    // Romanian shame vocabulary
+    // "rușine / rușinos / ar trebui să-ți fie rușine"
+    /\b(ru[sș]ine|ru[sș]inos|s[aă]-[tț]i fie ru[sș]ine|n-ai pic de)\b/i,
+    // Romanian identity shaming: "ești doar un/o..." (you're just a...)
+    /\be[sș]ti (doar |numai )?(un |o )?(prost|proast[aă]|idiot|analfabet|incult|needucat|ignorant)\w*\b/i,
   ],
   moderate: [
     /\b(loser|failure|weak|coward|snowflake)\b/i,
     /imagine (being|thinking|believing)/i,
+    // Dismissive shame: "clown", "joke", "embarrassment"
+    /\b(clown|joke|embarrassment|disgrace|laughingstock|sellout)\b/i,
+    // Romanian moderate shame
+    /\b(penibil|jalnic|ridicol|lamentabil|mediocru|nesim[tț]it)\w*\b/i,
   ],
   exceptions: [
     /\b(self-reflection|accountability)\b/i,

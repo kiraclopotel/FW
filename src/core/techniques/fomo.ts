@@ -12,8 +12,16 @@ const PATTERNS: PatternSet = {
     /\bmiss out (forever|on this)\b/i,
     /\bonly available (for|until|today)\b/i,
     /\bsecret (method|trick|hack|way|formula)\b/i,
+    // "they don't want you to have this" — gatekeeping FOMO
+    /\b(they|the elite|the rich) don'?t want you to (have|use|know about) this\b/i,
+    // Romanian FOMO
+    /\bnu rata\b/i,
+    /\b(acces exclusiv|edi[tț]ie limitat[aă]|locuri limitate)\b/i,
   ],
-  moderate: [],
+  moderate: [
+    // Romanian moderate FOMO
+    /\b(o s[aă] regre[tț]i|nu l[aă]sa s[aă] treac[aă]|ultimele locuri)\b/i,
+  ],
   exceptions: [
     /\b(event|concert|show|game) (tickets|registration)\b/i,
   ],

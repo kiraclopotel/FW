@@ -38,6 +38,13 @@ export const misleadingFormatClassifier: TechniqueClassifier = {
       };
     }
 
+    // 0. ALL-CAPS prefix manipulation: MUST-WATCH, BREAKING, URGENT etc. at start of text
+    const capsPrefix = /^(MUST[- ]?(WATCH|SEE|READ|SHARE|KNOW)|BREAKING|URGENT|ALERT|EXPOSED|LEAKED|BOMBSHELL|SHOCK(ING)?)\s*[:\-!]/;
+    if (capsPrefix.test(text.trim())) {
+      score += 3;
+      evidence.push(`manipulative ALL-CAPS prefix: "${text.trim().match(capsPrefix)?.[0]}"`);
+    }
+
     // 1. Count ALL-CAPS words (length >= 2, excluding acronyms)
     // Strip trailing punctuation before checking
     const capsWords = words.filter(w => {
