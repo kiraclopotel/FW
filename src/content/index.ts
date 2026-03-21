@@ -7,6 +7,7 @@ import { TwitterAdapter } from './platforms/twitter';
 import { FacebookAdapter } from './platforms/facebook';
 import { FourchanAdapter } from './platforms/fourchan';
 import { YoutubeAdapter } from './platforms/youtube';
+import { RedditAdapter } from './platforms/reddit';
 import { ContentInterceptor } from './interceptor';
 import { PostContent } from '../types/post';
 import { PlatformAdapter } from './platforms/adapter';
@@ -118,9 +119,8 @@ function resolveAdapter(platform: ReturnType<typeof detectCurrentPlatform>) {
       return new TwitterAdapter();
     case 'facebook':
       return new FacebookAdapter();
-    // TODO: import and return RedditAdapter once created
     case 'reddit':
-      return null;
+      return new RedditAdapter();
     case '4chan':
       return new FourchanAdapter();
     case 'youtube':
