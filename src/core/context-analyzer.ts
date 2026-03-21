@@ -1,7 +1,7 @@
 // FeelingWise - Layer 2: AI Semantic Verification
 
 import { TechniqueResult, AnalysisResult } from '../types/analysis';
-import { LAYER2_VERIFICATION_SYSTEM, LAYER2_VERIFICATION_USER_TEMPLATE, LAYER2_ROMANIAN_USER_TEMPLATE } from '../ai/prompts';
+import { LAYER2_VERIFICATION_SYSTEM, LAYER2_VERIFICATION_USER_TEMPLATE, LAYER2_ROMANIAN_USER_TEMPLATE, SAMPLED_DETECTION_SYSTEM, SAMPLED_DETECTION_USER_TEMPLATE } from '../ai/prompts';
 import { callAI } from '../ai/client';
 
 interface VerificationVerdict {
@@ -76,22 +76,27 @@ export async function verifyWithContext(
   techniques: TechniqueResult[],
   isRomanian = false,
   fastMode = true,
+  sampled = false,
 ): Promise<AnalysisResult> {
   const startTime = performance.now();
 
   try {
+    let systemPrompt: string;
     let userPrompt: string;
-    if (isRomanian && techniques.filter(t => t.present).length === 0) {
-      userPrompt = LAYER2_ROMANIAN_USER_TEMPLATE
-        .replace('{text}', text);
+    if (sampled || (isRomanian && techniques.filter(t => t.present).length === 0)) {
+      // SAMPLED post or Romanian with no L1 flags: use DETECTION prompt (analyze from scratch)
+      systemPrompt = SAMPLED_DETECTION_SYSTEM;
+      userPrompt = SAMPLED_DETECTION_USER_TEMPLATE.replace('{text}', text);
     } else {
+      // L1-triggered post: use VERIFICATION prompt (verify existing flags)
+      systemPrompt = LAYER2_VERIFICATION_SYSTEM;
       const flags = buildFlags(techniques);
       userPrompt = LAYER2_VERIFICATION_USER_TEMPLATE
         .replace('{text}', text)
         .replace('{flags}', flags);
     }
 
-    const raw = await callAI(LAYER2_VERIFICATION_SYSTEM, userPrompt, fastMode);
+    const raw = await callAI(systemPrompt, userPrompt, fastMode);
     if (!raw) {
       return capConfidence(techniques, 0.60);
     }
@@ -101,32 +106,48 @@ export async function verifyWithContext(
       return capConfidence(techniques, 0.60);
     }
 
-    // Map verdicts onto techniques
-    const verified = techniques.map(t => {
-      const verdict = response.techniques?.find(
-        v => v.name === t.technique
-      );
-      if (!verdict) return t;
-
-      switch (verdict.verdict) {
-        case 'CONFIRMED':
-          return {
-            ...t,
-            present: true,
-            confidence: Math.max(t.confidence, 0.75),
-            severity: verdict.severity ?? t.severity,
-          };
-        case 'DENIED':
-          return { ...t, present: false, confidence: 0 };
-        case 'UNCERTAIN':
-          return {
-            ...t,
-            severity: Math.max(1, t.severity - 1),
-          };
-        default:
-          return t;
+    let verified: TechniqueResult[];
+    if (sampled || (isRomanian && techniques.filter(t => t.present).length === 0)) {
+      // For sampled/Romanian posts: BUILD technique results from AI response
+      // Start with all techniques as not-present
+      verified = techniques.map(t => ({ ...t, present: false, confidence: 0 }));
+      // Mark techniques the AI confirmed as present
+      if (response.techniques) {
+        for (const aiTechnique of response.techniques) {
+          const idx = verified.findIndex(t => t.technique === aiTechnique.name);
+          if (idx !== -1 && aiTechnique.verdict === 'CONFIRMED') {
+            verified[idx] = {
+              ...verified[idx],
+              present: true,
+              confidence: response.overallConfidence ?? 0.75,
+              severity: aiTechnique.severity ?? 5,
+              evidence: [aiTechnique.reason ?? ''],
+            };
+          }
+        }
       }
-    });
+    } else {
+      // For L1-triggered posts: MAP verdicts onto existing techniques (existing behavior)
+      verified = techniques.map(t => {
+        const verdict = response.techniques?.find(v => v.name === t.technique);
+        if (!verdict) return t;
+        switch (verdict.verdict) {
+          case 'CONFIRMED':
+            return {
+              ...t,
+              present: true,
+              confidence: Math.max(t.confidence, 0.75),
+              severity: verdict.severity ?? t.severity,
+            };
+          case 'DENIED':
+            return { ...t, present: false, confidence: 0 };
+          case 'UNCERTAIN':
+            return { ...t, severity: Math.max(1, t.severity - 1) };
+          default:
+            return t;
+        }
+      });
+    }
 
     const present = verified.filter(t => t.present);
     const processingTimeMs = performance.now() - startTime;

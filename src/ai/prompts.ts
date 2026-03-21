@@ -63,3 +63,41 @@ export const LAYER2_ROMANIAN_USER_TEMPLATE = `POST: {text}
 No Layer 1 flags (Romanian language detected — full analysis requested)
 
 VERIFY:`;
+
+export const SAMPLED_DETECTION_SYSTEM = `You are a manipulation detection system. Analyze the following social media post for psychological manipulation techniques.
+MANIPULATION = content designed to exploit psychological vulnerabilities to bypass rational evaluation.
+NOT MANIPULATION = persuasion, genuine emotion, cultural expression, satire, irony, news reporting, personal opinion stated as opinion.
+The 10 techniques to check for:
+1. fear-appeal: Disproportionate alarm to bypass rational evaluation
+2. anger-trigger: Inflammatory framing designed to provoke outrage before thought
+3. shame-attack: Attacking identity/self-worth to force compliance
+4. false-urgency: Manufactured time pressure to prevent reflection
+5. bandwagon: Fabricated consensus to make dissent feel abnormal
+6. scapegoating: Blaming identifiable groups for complex systemic problems
+7. fomo: Manufactured exclusivity to create compulsive engagement
+8. toxic-positivity: Dismissing legitimate distress with forced optimism
+9. misleading-format: Visual tricks (ALL CAPS on emotional words, emoji saturation) to bypass normal processing
+10. combined: 3+ techniques layered together for compound effect
+CRITICAL DISTINCTIONS:
+- A person expressing THEIR OWN emotion is NOT manipulation
+- Strong political opinion WITH arguments is NOT manipulation
+- Legitimate news about scary events is NOT fearmongering
+- The TEST: if you strip the emotional packaging, does the factual claim still have persuasive force? If yes = persuasion. If the entire impact depends on the emotional packaging = manipulation.
+Analyze the post. For each technique detected, rate severity 1-10.
+When uncertain, lean toward NOT MANIPULATIVE.
+OUTPUT: JSON only, no markdown. Use double quotes for all keys and string values.
+{
+  "techniques": [{"name": "technique-name", "verdict": "CONFIRMED", "severity": 1-10, "reason": "brief explanation"}],
+  "overallManipulative": true/false,
+  "overallConfidence": 0.0-1.0
+}
+If the post is NOT manipulative, return:
+{
+  "techniques": [],
+  "overallManipulative": false,
+  "overallConfidence": 0.0
+}`;
+
+export const SAMPLED_DETECTION_USER_TEMPLATE = `POST: {text}
+
+ANALYZE FOR MANIPULATION:`;

@@ -43,6 +43,7 @@ export async function process(post: PostContent): Promise<PipelineResult> {
     });
 
     // If zero triggers and not Romanian → check suspicion heuristics for sampling
+    let wasSampled = false;
     if (detected.length === 0 && !romanian) {
       const settings = await getSettings();
       const suspicion = scoreSuspicion(post.text);
@@ -53,6 +54,7 @@ export async function process(post: PostContent): Promise<PipelineResult> {
       }
 
       console.log(`[FeelingWise] Pipeline: SAMPLED (suspicion ${suspicion.total.toFixed(2)})`);
+      wasSampled = true;
       // Fall through to Layer 2 with empty technique list
       // L2 AI will do full analysis from scratch
     }
@@ -60,7 +62,7 @@ export async function process(post: PostContent): Promise<PipelineResult> {
     // Step 2: Layer 2 — AI verification via callAI()
     const settings = await getSettings();
     const fastMode = !settings.deepScanEnabled;
-    const analysis = await verifyWithContext(post.text, techniques, romanian, fastMode);
+    const analysis = await verifyWithContext(post.text, techniques, romanian, fastMode, wasSampled);
     analysis.postId = post.id;
 
     console.log(`[FeelingWise] Pipeline L2:`, {
