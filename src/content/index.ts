@@ -70,6 +70,7 @@ async function onPostDetected(post: PostContent): Promise<void> {
       settings.mode,
       post.platform,
       result.neutralized.aiSource,
+      post.author,
     ).catch(err => { console.error('[FeelingWise] Forensic logging error:', err); });
 
     console.log(`[FeelingWise] ${result.action === 'flag' ? 'Flagged' : 'Neutralized'} post ${post.id}`);

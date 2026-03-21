@@ -30,19 +30,19 @@ function escapeCSV(value: string): string {
 }
 
 export function exportCSV(records: ForensicRecord[]): void {
-  const header = 'timestamp,platform,techniques,severity,original_length,neutralized_text_preview';
+  const header = 'timestamp,platform,author,post_url,techniques,severity,original_length,original_text,neutralized_text';
   const rows = records.map(r => {
     const techniques = r.techniques.map(t => t.name).join(';');
-    const severity = String(r.overallScore);
-    const originalLength = String(r.originalLength);
-    const preview = r.neutralizedText.slice(0, 100);
     return [
       escapeCSV(r.timestamp),
       escapeCSV(r.platform),
+      escapeCSV(r.author),
+      escapeCSV(r.postUrl),
       escapeCSV(techniques),
-      escapeCSV(severity),
-      escapeCSV(originalLength),
-      escapeCSV(preview),
+      escapeCSV(String(r.overallScore)),
+      escapeCSV(String(r.originalLength)),
+      escapeCSV(r.originalText),
+      escapeCSV(r.neutralizedText),
     ].join(',');
   });
 
