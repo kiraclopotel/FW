@@ -22,5 +22,7 @@ export function detectCurrentPlatform(): Platform | null {
   if (host.includes('tiktok.com')) return 'tiktok';
   if (host.includes('facebook.com')) return 'facebook';
   if (host.includes('youtube.com')) return 'youtube';
+  if (host.includes('reddit.com')) return 'reddit';
+  if (host.includes('4chan.org') || host.includes('4channel.org')) return '4chan';
   return null;
 }

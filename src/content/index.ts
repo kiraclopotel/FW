@@ -116,6 +116,12 @@ function resolveAdapter(platform: ReturnType<typeof detectCurrentPlatform>) {
       return new TwitterAdapter();
     case 'facebook':
       return new FacebookAdapter();
+    // TODO: import and return RedditAdapter once created
+    case 'reddit':
+      return null;
+    // TODO: import and return FourChanAdapter once created
+    case '4chan':
+      return null;
     default:
       return null;
   }

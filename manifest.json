@@ -10,7 +10,11 @@
     "*://*.instagram.com/*",
     "*://*.tiktok.com/*",
     "*://*.facebook.com/*",
-    "*://*.youtube.com/*"
+    "*://*.youtube.com/*",
+    "*://*.reddit.com/*",
+    "*://*.old.reddit.com/*",
+    "*://*.4chan.org/*",
+    "*://*.4channel.org/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
@@ -27,7 +31,11 @@
         "*://*.instagram.com/*",
         "*://*.tiktok.com/*",
         "*://*.facebook.com/*",
-        "*://*.youtube.com/*"
+        "*://*.youtube.com/*",
+        "*://*.reddit.com/*",
+        "*://*.old.reddit.com/*",
+        "*://*.4chan.org/*",
+        "*://*.4channel.org/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"
