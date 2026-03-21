@@ -3,6 +3,7 @@
 import { TechniqueResult, AnalysisResult } from '../types/analysis';
 import { LAYER2_VERIFICATION_SYSTEM, LAYER2_VERIFICATION_USER_TEMPLATE, LAYER2_ROMANIAN_USER_TEMPLATE, SAMPLED_DETECTION_SYSTEM, SAMPLED_DETECTION_USER_TEMPLATE } from '../ai/prompts';
 import { callAI } from '../ai/client';
+import { aggregateSeverity } from './severity';
 
 interface VerificationVerdict {
   name: string;
@@ -64,7 +65,7 @@ function capConfidence(techniques: TechniqueResult[], cap: number): AnalysisResu
   return {
     postId: '',
     techniques: capped,
-    overallScore: present.reduce((sum, t) => sum + t.severity, 0),
+    overallScore: aggregateSeverity(capped),
     overallConfidence: present.length > 0 ? Math.min(Math.max(...present.map(t => t.confidence)), cap) : 0,
     isManipulative: present.length > 0,
     processingTimeMs: 0,
@@ -155,7 +156,7 @@ export async function verifyWithContext(
     return {
       postId: '',
       techniques: verified,
-      overallScore: present.reduce((sum, t) => sum + t.severity, 0),
+      overallScore: aggregateSeverity(verified),
       overallConfidence: response.overallConfidence ?? (present.length > 0 ? Math.max(...present.map(t => t.confidence)) : 0),
       isManipulative: response.overallManipulative ?? present.length > 0,
       processingTimeMs,
