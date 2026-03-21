@@ -11,8 +11,6 @@ import { PlatformAdapter } from './platforms/adapter';
 import { process } from '../core/pipeline';
 import { getSettings } from '../storage/settings';
 import { injectIntoElement } from './injector';
-import { logForensicEvent } from '../forensics/logger';
-
 let activeAdapter: PlatformAdapter | null = null;
 
 function init(): void {
@@ -68,17 +66,22 @@ async function onPostDetected(post: PostContent): Promise<void> {
       postUrl = `https://x.com/${post.author.replace(/^@/, '')}/status/${post.id}`;
     }
 
-    // Forensic logging — non-blocking, failures don't affect neutralization
-    logForensicEvent(
-      post.text,
-      result.neutralized.rewrittenText,
-      result.neutralized.analysis,
-      settings.mode,
-      post.platform,
-      result.neutralized.aiSource,
-      post.author,
-      postUrl,
-    ).catch(err => { console.error('[FeelingWise] Forensic logging error:', err); });
+    // Send forensic data to service worker for storage in extension-origin IndexedDB.
+    // Content scripts run in the webpage's origin, so writing IndexedDB here would
+    // be invisible to the dashboard (which runs in the extension origin).
+    chrome.runtime.sendMessage({
+      type: 'FORENSIC_LOG',
+      payload: {
+        originalText: post.text,
+        neutralizedText: result.neutralized.rewrittenText,
+        analysis: result.neutralized.analysis,
+        mode: settings.mode,
+        platform: post.platform,
+        aiSource: result.neutralized.aiSource,
+        author: post.author,
+        postUrl,
+      },
+    }).catch(err => { console.error('[FeelingWise] Forensic logging error:', err); });
 
     console.log(`[FeelingWise] ${result.action === 'flag' ? 'Flagged' : 'Neutralized'} post ${post.id}`);
   }
