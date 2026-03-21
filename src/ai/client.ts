@@ -1,7 +1,7 @@
 // FeelingWise - Multi-provider AI client
 // Single entry point for all AI calls. Supports Anthropic, OpenAI, DeepSeek, Gemini, and managed credits.
 
-import { getSettings, incrementChecks, consumeCredits } from '../storage/settings';
+import { getSettings, incrementChecks, consumeCredits, trackTokenUsage } from '../storage/settings';
 
 export async function callAI(system: string, user: string, fastMode = true): Promise<string> {
   const settings = await getSettings();
@@ -66,6 +66,9 @@ async function callAnthropic(system: string, user: string, apiKey: string, fast:
       console.error('[FeelingWise] Anthropic error:', data.error.message);
       return '';
     }
+    if (data.usage) {
+      await trackTokenUsage(data.usage.input_tokens || 0, data.usage.output_tokens || 0, 'anthropic');
+    }
     return data.content?.[0]?.text ?? '';
   } catch {
     return '';
@@ -95,6 +98,9 @@ async function callOpenAI(system: string, user: string, apiKey: string, fast: bo
     if (data.error) {
       console.error('[FeelingWise] OpenAI error:', data.error.message);
       return '';
+    }
+    if (data.usage) {
+      await trackTokenUsage(data.usage.prompt_tokens || 0, data.usage.completion_tokens || 0, 'openai');
     }
     return data.choices?.[0]?.message?.content ?? '';
   } catch {
@@ -126,6 +132,9 @@ async function callDeepSeek(system: string, user: string, apiKey: string, fast: 
       console.error('[FeelingWise] DeepSeek error:', data.error.message);
       return '';
     }
+    if (data.usage) {
+      await trackTokenUsage(data.usage.prompt_tokens || 0, data.usage.completion_tokens || 0, 'deepseek');
+    }
     return data.choices?.[0]?.message?.content ?? '';
   } catch {
     return '';
@@ -152,6 +161,9 @@ async function callGemini(system: string, user: string, apiKey: string, fast: bo
     if (data.error) {
       console.error('[FeelingWise] Gemini error:', data.error.message);
       return '';
+    }
+    if (data.usageMetadata) {
+      await trackTokenUsage(data.usageMetadata.promptTokenCount || 0, data.usageMetadata.candidatesTokenCount || 0, 'gemini');
     }
     return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
   } catch {
