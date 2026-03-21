@@ -1,14 +1,65 @@
 // FeelingWise - Neutralization Engine
-//
-// Takes flagged content + verified analysis, generates neutralized rewrite
-// Uses NEUTRALIZATION prompt from MASTER_BUILD_GUIDE.md Section 3.1
-//
-// Every output MUST pass validateNeutralization():
-//   1. Length <= original * 1.2
-//   2. Non-empty (>= 5 chars)
-//   3. Does not contain meta-commentary (manipulat, propaganda, technique, etc.)
-//
-// If validation fails: original passes through UNCHANGED.
-// A bad neutralization is worse than no neutralization.
-//
-// TODO: Implement
+
+import { AnalysisResult } from '../types/analysis';
+import { NeutralizedContent } from '../types/neutralization';
+import { NEUTRALIZATION_SYSTEM, NEUTRALIZATION_USER_TEMPLATE } from '../ai/prompts';
+import { runInference } from '../ai/local/inference';
+
+const FORBIDDEN_PATTERN = /manipulat|propaganda|technique|fallacy|rhetoric/i;
+
+function simpleHash(text: string): string {
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) {
+    const char = text.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0; // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString(16);
+}
+
+function validateNeutralization(original: string, rewritten: string): boolean {
+  if (rewritten.length > original.length * 1.2) return false;
+  if (rewritten.length < 5) return false;
+  if (FORBIDDEN_PATTERN.test(rewritten)) return false;
+  return true;
+}
+
+export async function neutralize(
+  text: string,
+  analysis: AnalysisResult,
+): Promise<NeutralizedContent | null> {
+  try {
+    const presentTechniques = analysis.techniques
+      .filter(t => t.present)
+      .map(t => t.technique)
+      .join(', ');
+
+    const userPrompt = NEUTRALIZATION_USER_TEMPLATE
+      .replace('{text}', text)
+      .replace('{techniques}', presentTechniques);
+
+    const startTime = performance.now();
+    const rewritten = await runInference(NEUTRALIZATION_SYSTEM, userPrompt);
+
+    if (!rewritten) return null;
+
+    const trimmed = rewritten.trim();
+
+    if (!validateNeutralization(text, trimmed)) {
+      console.warn('[FeelingWise] Neutralization failed validation');
+      return null;
+    }
+
+    return {
+      postId: analysis.postId,
+      originalHash: simpleHash(text),
+      rewrittenText: trimmed,
+      analysis,
+      aiSource: 'local',
+      processingTimeMs: performance.now() - startTime,
+    };
+  } catch (err) {
+    console.error('[FeelingWise] Neutralization error:', err);
+    return null;
+  }
+}
