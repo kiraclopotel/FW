@@ -20,6 +20,8 @@ export interface FWSettings {
   // Stats
   totalChecksToday: number;
   totalNeutralizedToday: number;
+  totalTokensToday: number;         // cumulative input + output tokens
+  estimatedCostToday: number;       // estimated cost in USD cents
   lastResetDate: string;
 }
 
@@ -27,7 +29,7 @@ const SETTINGS_KEYS: (keyof FWSettings)[] = [
   'mode', 'apiProvider',
   'anthropicApiKey', 'openaiApiKey', 'deepSeekApiKey', 'geminiApiKey',
   'managedCredits', 'dailyCap', 'deepScanEnabled',
-  'totalChecksToday', 'totalNeutralizedToday', 'lastResetDate',
+  'totalChecksToday', 'totalNeutralizedToday', 'totalTokensToday', 'estimatedCostToday', 'lastResetDate',
 ];
 
 const DEFAULTS: FWSettings = {
@@ -42,6 +44,8 @@ const DEFAULTS: FWSettings = {
   deepScanEnabled: false,
   totalChecksToday: 0,
   totalNeutralizedToday: 0,
+  totalTokensToday: 0,
+  estimatedCostToday: 0,
   lastResetDate: new Date().toDateString(),
 };
 
@@ -60,10 +64,14 @@ export async function getSettings(): Promise<FWSettings> {
     if (settings.lastResetDate !== today) {
       settings.totalChecksToday = 0;
       settings.totalNeutralizedToday = 0;
+      settings.totalTokensToday = 0;
+      settings.estimatedCostToday = 0;
       settings.lastResetDate = today;
       await chrome.storage.local.set({
         totalChecksToday: 0,
         totalNeutralizedToday: 0,
+        totalTokensToday: 0,
+        estimatedCostToday: 0,
         lastResetDate: today,
       });
     }
@@ -89,6 +97,28 @@ export async function incrementNeutralized(): Promise<void> {
   const settings = await getSettings();
   await chrome.storage.local.set({
     totalNeutralizedToday: settings.totalNeutralizedToday + 1,
+  });
+}
+
+export async function trackTokenUsage(inputTokens: number, outputTokens: number, provider: string): Promise<void> {
+  const settings = await getSettings();
+  const totalNew = inputTokens + outputTokens;
+
+  // Approximate cost per 1M tokens (in USD cents) — input/output averaged
+  const costPer1M: Record<string, number> = {
+    'deepseek': 14,   // ~$0.14/1M tokens (DeepSeek chat)
+    'anthropic': 80,   // ~$0.80/1M tokens (Haiku average)
+    'openai': 15,      // ~$0.15/1M tokens (GPT-4o-mini average)
+    'gemini': 10,      // ~$0.10/1M tokens (Flash average)
+    'managed': 0,
+  };
+
+  const rate = costPer1M[provider] ?? 20;
+  const costCents = (totalNew / 1_000_000) * rate;
+
+  await chrome.storage.local.set({
+    totalTokensToday: settings.totalTokensToday + totalNew,
+    estimatedCostToday: Math.round((settings.estimatedCostToday + costCents) * 100) / 100,
   });
 }
 

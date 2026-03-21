@@ -327,6 +327,12 @@ function MainScreen({ settings, update, onSettings }: {
         <StatCard value={settings.totalNeutralizedToday} label="neutralized" />
       </div>
 
+      {/* Token usage */}
+      <div style={{ padding: '0 16px 12px', fontSize: 11, color: C.muted, display: 'flex', justifyContent: 'space-between' }}>
+        <span>{settings.totalTokensToday.toLocaleString()} tokens used today</span>
+        <span>~${(settings.estimatedCostToday / 100).toFixed(3)}</span>
+      </div>
+
       {/* Daily cap */}
       <div style={{ padding: '0 16px 16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>

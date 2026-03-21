@@ -77,9 +77,11 @@ export async function process(post: PostContent): Promise<PipelineResult> {
     }
 
     // Step 3: Apply mode-aware confidence thresholds
-    const threshold = settings.mode === 'child' ? 0.60
-                    : settings.mode === 'teen' ? 0.70
-                    : 0.80;
+    // Child/teen: threshold for NEUTRALIZATION (replacing content)
+    // Adult: threshold for FLAGGING (showing amber dot — original stays)
+    const threshold = settings.mode === 'child' ? 0.65
+                    : settings.mode === 'teen' ? 0.60
+                    : 0.55; // adult: just flagging, low cost of false positive
 
     if (analysis.overallConfidence < threshold) {
       console.log(`[FeelingWise] Pipeline: PASS (confidence ${analysis.overallConfidence.toFixed(2)} < threshold ${threshold})`);
@@ -87,7 +89,7 @@ export async function process(post: PostContent): Promise<PipelineResult> {
     }
 
     // Reduce severity for borderline detections
-    if (analysis.overallConfidence < threshold + 0.15) {
+    if (analysis.overallConfidence < threshold + 0.10) {
       for (const t of analysis.techniques) {
         if (t.present) {
           t.severity = Math.max(1, t.severity - 1);
