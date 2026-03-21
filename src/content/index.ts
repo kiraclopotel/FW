@@ -90,6 +90,23 @@ async function onPostDetected(post: PostContent): Promise<void> {
 
     console.log(`[FeelingWise] ${result.action === 'flag' ? 'Flagged' : 'Neutralized'} post ${post.id}`);
   }
+
+  // Author intelligence: update profile for every processed post (flagged or not)
+  if (post.author) {
+    const flagged = result.action !== 'pass';
+    const techniques = flagged && result.neutralized
+      ? result.neutralized.analysis.techniques.filter(t => t.present).map(t => t.technique)
+      : [];
+    chrome.runtime.sendMessage({
+      type: 'AUTHOR_UPDATE',
+      payload: {
+        author: post.author,
+        platform: post.platform,
+        flagged,
+        techniques,
+      },
+    }).catch(() => {});
+  }
 }
 
 function resolveAdapter(platform: ReturnType<typeof detectCurrentPlatform>) {

@@ -9,6 +9,7 @@ import { NeutralizedContent } from '../types/neutralization';
 import { detect } from './detector';
 import { combinedDetectAndNeutralize } from './neutralizer';
 import { getSettings } from '../storage/settings';
+import { getAuthorProfile, getSuspicionBoost } from '../forensics/author-store';
 
 export interface PipelineResult {
   action: 'pass' | 'neutralize' | 'flag';
@@ -58,10 +59,30 @@ export async function process(post: PostContent): Promise<PipelineResult> {
     const detected = techniques.filter(t => t.present);
     const romanian = isRomanian(post.text);
 
+    // Author intelligence: boost confidence for repeat offenders
+    let authorBoost = 0;
+    if (post.author) {
+      try {
+        const authorProfile = await getAuthorProfile(post.author);
+        authorBoost = getSuspicionBoost(authorProfile);
+        if (authorBoost > 0) {
+          // Apply boost to L1 confidence caps for this author's posts
+          for (const t of techniques) {
+            if (t.present) {
+              t.confidence = Math.min(1, t.confidence + authorBoost);
+            }
+          }
+        }
+      } catch {
+        // Non-critical: author intelligence unavailable
+      }
+    }
+
     console.log(`[FeelingWise] Pipeline L1:`, {
       postId: post.id,
       detected: detected.length,
       romanian,
+      authorBoost,
     });
 
     // Step 2: Check budget before calling AI
