@@ -103,4 +103,41 @@ function resolveAdapter(platform: ReturnType<typeof detectCurrentPlatform>) {
   }
 }
 
+// ─── API status indicator ───
+function showApiWarning(): void {
+  if (document.querySelector('.fw-api-warning')) return;
+  const div = document.createElement('div');
+  div.className = 'fw-api-warning';
+  div.textContent = '\u26A1 FeelingWise: API disconnected \u2014 click extension icon to reconnect';
+  Object.assign(div.style, {
+    position: 'fixed',
+    bottom: '16px',
+    right: '16px',
+    zIndex: '99999',
+    background: 'rgb(22,24,28)',
+    border: '1px solid #ffab40',
+    color: '#ffab40',
+    fontSize: '12px',
+    padding: '6px 12px',
+    borderRadius: '8px',
+    opacity: '0.9',
+    cursor: 'pointer',
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+  });
+  div.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ type: 'OPEN_POPUP' }).catch(() => {});
+    div.remove();
+  });
+  document.body.appendChild(div);
+}
+
+function removeApiWarning(): void {
+  document.querySelector('.fw-api-warning')?.remove();
+}
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === 'FW_API_DISCONNECTED') showApiWarning();
+  if (msg.type === 'FW_API_CONNECTED') removeApiWarning();
+});
+
 init();
