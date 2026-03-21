@@ -396,7 +396,7 @@ function MainScreen({ settings, update, onSettings }: {
             fontSize: 12,
             fontWeight: 500,
             background: 'transparent',
-            color: C.muted,
+            color: C.teal,
             border: `1px solid ${C.border}`,
             borderRadius: 6,
             cursor: 'pointer',

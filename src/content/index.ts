@@ -62,6 +62,12 @@ async function onPostDetected(post: PostContent): Promise<void> {
       timestamp: new Date().toISOString(),
     }).catch(() => {}); // ignore if popup not open
 
+    // Construct post URL when possible
+    let postUrl = '';
+    if (post.platform === 'twitter' && post.author && post.id) {
+      postUrl = `https://x.com/${post.author.replace(/^@/, '')}/status/${post.id}`;
+    }
+
     // Forensic logging — non-blocking, failures don't affect neutralization
     logForensicEvent(
       post.text,
@@ -71,6 +77,7 @@ async function onPostDetected(post: PostContent): Promise<void> {
       post.platform,
       result.neutralized.aiSource,
       post.author,
+      postUrl,
     ).catch(err => { console.error('[FeelingWise] Forensic logging error:', err); });
 
     console.log(`[FeelingWise] ${result.action === 'flag' ? 'Flagged' : 'Neutralized'} post ${post.id}`);
