@@ -1,8 +1,6 @@
 // FeelingWise - Content script entry point
 // Detects the current platform, loads the appropriate adapter,
 // and starts the MutationObserver to intercept posts.
-//
-// Phase 4: intercepted posts are run through the full 3-layer pipeline.
 
 import { detectCurrentPlatform } from './platforms/adapter';
 import { TwitterAdapter } from './platforms/twitter';
@@ -10,6 +8,8 @@ import { ContentInterceptor } from './interceptor';
 import { PostContent } from '../types/post';
 import { PlatformAdapter } from './platforms/adapter';
 import { process } from '../core/pipeline';
+import { getSettings } from '../storage/settings';
+import { injectIntoElement } from './injector';
 
 let activeAdapter: PlatformAdapter | null = null;
 
@@ -34,7 +34,31 @@ async function onPostDetected(post: PostContent): Promise<void> {
   const result = await process(post);
 
   if (result.action === 'neutralize' && result.neutralized && activeAdapter) {
-    activeAdapter.replaceContent(post.domRef, result.neutralized.rewrittenText);
+    // Get mode for injection styling
+    const settings = await getSettings();
+    const el = post.domRef.deref();
+
+    if (el) {
+      injectIntoElement(el, result.neutralized, settings.mode);
+    } else {
+      activeAdapter.replaceContent(post.domRef, result.neutralized.rewrittenText);
+    }
+
+    // Notify service worker for stats tracking
+    const confirmedTechniques = result.neutralized.analysis.techniques
+      .filter(t => t.present)
+      .map(t => t.technique);
+
+    chrome.runtime.sendMessage({
+      type: 'NEUTRALIZATION_COMPLETE',
+      payload: {
+        postId: post.id,
+        techniques: confirmedTechniques,
+        confidence: result.neutralized.analysis.overallConfidence,
+      },
+      timestamp: new Date().toISOString(),
+    }).catch(() => {}); // ignore if popup not open
+
     console.log(`[FeelingWise] Neutralized post ${post.id}`);
   }
 }

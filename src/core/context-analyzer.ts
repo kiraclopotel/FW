@@ -1,8 +1,8 @@
-// FeelingWise - Layer 2: Local AI Semantic Verification
+// FeelingWise - Layer 2: AI Semantic Verification
 
 import { TechniqueResult, AnalysisResult } from '../types/analysis';
 import { LAYER2_VERIFICATION_SYSTEM, LAYER2_VERIFICATION_USER_TEMPLATE, LAYER2_ROMANIAN_USER_TEMPLATE } from '../ai/prompts';
-import { runInference } from '../ai/local/inference';
+import { callAI } from '../ai/client';
 
 interface VerificationVerdict {
   name: string;
@@ -47,6 +47,7 @@ export async function verifyWithContext(
   text: string,
   techniques: TechniqueResult[],
   isRomanian = false,
+  fastMode = true,
 ): Promise<AnalysisResult> {
   const startTime = performance.now();
 
@@ -62,7 +63,7 @@ export async function verifyWithContext(
         .replace('{flags}', flags);
     }
 
-    const raw = await runInference(LAYER2_VERIFICATION_SYSTEM, userPrompt);
+    const raw = await callAI(LAYER2_VERIFICATION_SYSTEM, userPrompt, fastMode);
     if (!raw) {
       return capConfidence(techniques, 0.60);
     }

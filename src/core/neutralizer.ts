@@ -3,7 +3,7 @@
 import { AnalysisResult } from '../types/analysis';
 import { NeutralizedContent } from '../types/neutralization';
 import { NEUTRALIZATION_SYSTEM, NEUTRALIZATION_USER_TEMPLATE } from '../ai/prompts';
-import { runInference } from '../ai/local/inference';
+import { callAI } from '../ai/client';
 
 const FORBIDDEN_PATTERN = /manipulat|propaganda|technique|fallacy|rhetoric/i;
 
@@ -39,7 +39,7 @@ export async function neutralize(
       .replace('{techniques}', presentTechniques);
 
     const startTime = performance.now();
-    const rewritten = await runInference(NEUTRALIZATION_SYSTEM, userPrompt);
+    const rewritten = await callAI(NEUTRALIZATION_SYSTEM, userPrompt, true);
 
     if (!rewritten) return null;
 
@@ -55,7 +55,7 @@ export async function neutralize(
       originalHash: simpleHash(text),
       rewrittenText: trimmed,
       analysis,
-      aiSource: 'local',
+      aiSource: 'cloud',
       processingTimeMs: performance.now() - startTime,
     };
   } catch (err) {

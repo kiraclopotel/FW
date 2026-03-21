@@ -1,5 +1,5 @@
 // FeelingWise - Processing Pipeline Orchestrator
-// Three-layer detection cascade: Pattern Scan -> AI Verification -> Cloud (optional)
+// Three-layer detection cascade: Pattern Scan -> AI Verification -> Deep Scan (optional)
 //
 // CARDINAL RULE: When in doubt, PASS. Ambiguous = non-intervention.
 
@@ -9,8 +9,7 @@ import { NeutralizedContent } from '../types/neutralization';
 import { detect } from './detector';
 import { verifyWithContext } from './context-analyzer';
 import { neutralize } from './neutralizer';
-import { route, callCloud } from '../ai/router';
-import { getSettings } from '../storage/settings';
+import { getSettings, incrementNeutralized } from '../storage/settings';
 
 export interface PipelineResult {
   action: 'pass' | 'neutralize';
@@ -48,9 +47,10 @@ export async function process(post: PostContent): Promise<PipelineResult> {
       return PASS;
     }
 
-    // Step 2: Layer 2 — AI verification (via message passing to service worker)
-    // If model isn't ready, verifyWithContext returns capped L1 results (inference returns '')
-    const analysis = await verifyWithContext(post.text, techniques, romanian);
+    // Step 2: Layer 2 — AI verification via callAI()
+    const settings = await getSettings();
+    const fastMode = !settings.deepScanEnabled;
+    const analysis = await verifyWithContext(post.text, techniques, romanian, fastMode);
     analysis.postId = post.id;
 
     console.log(`[FeelingWise] Pipeline L2:`, {
@@ -67,7 +67,6 @@ export async function process(post: PostContent): Promise<PipelineResult> {
     }
 
     // Step 3: Apply confidence thresholds
-    const settings = await getSettings();
     let shouldNeutralize = false;
 
     if (analysis.overallConfidence > 0.85) {
@@ -81,29 +80,9 @@ export async function process(post: PostContent): Promise<PipelineResult> {
       }
       shouldNeutralize = true;
     } else {
-      // Low confidence — check router
-      const decision = route(analysis, settings.cloudEnabled);
-      console.log(`[FeelingWise] Router:`, decision);
-
-      if (decision.useCloud) {
-        // Layer 3: Cloud verification (stub — returns '' for now)
-        const flags = analysis.techniques
-          .filter(t => t.present)
-          .map(t => t.technique)
-          .join(', ');
-        const cloudResult = await callCloud(post.text, flags);
-
-        if (!cloudResult) {
-          // Cloud returned nothing (stub or timeout) → PASS
-          console.log(`[FeelingWise] Pipeline: PASS (cloud empty/timeout)`);
-          return PASS;
-        }
-        // If cloud returns a result, we'd parse it here (Phase 7)
-        shouldNeutralize = true;
-      } else {
-        console.log(`[FeelingWise] Pipeline: PASS (low confidence, no cloud)`);
-        return PASS;
-      }
+      // Low confidence → PASS (callAI handles provider routing)
+      console.log(`[FeelingWise] Pipeline: PASS (low confidence)`);
+      return PASS;
     }
 
     if (!shouldNeutralize) {
@@ -117,6 +96,9 @@ export async function process(post: PostContent): Promise<PipelineResult> {
       console.log(`[FeelingWise] Pipeline: PASS (neutralization failed/invalid)`);
       return PASS;
     }
+
+    // Track successful neutralization
+    await incrementNeutralized();
 
     const totalMs = performance.now() - startTime;
     console.log(`[FeelingWise] Pipeline: NEUTRALIZE (${totalMs.toFixed(0)}ms)`);
