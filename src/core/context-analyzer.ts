@@ -3,7 +3,6 @@
 import { TechniqueResult, AnalysisResult } from '../types/analysis';
 import { LAYER2_VERIFICATION_SYSTEM, LAYER2_VERIFICATION_USER_TEMPLATE, LAYER2_ROMANIAN_USER_TEMPLATE } from '../ai/prompts';
 import { runInference } from '../ai/local/inference';
-import { isReady } from '../ai/local/model-manager';
 
 interface VerificationVerdict {
   name: string;
@@ -49,10 +48,6 @@ export async function verifyWithContext(
   techniques: TechniqueResult[],
   isRomanian = false,
 ): Promise<AnalysisResult> {
-  if (!isReady()) {
-    return capConfidence(techniques, 0.60);
-  }
-
   const startTime = performance.now();
 
   try {
