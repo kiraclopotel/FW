@@ -33,14 +33,15 @@ function init(): void {
 async function onPostDetected(post: PostContent): Promise<void> {
   const result = await process(post);
 
-  if (result.action === 'neutralize' && result.neutralized && activeAdapter) {
+  if ((result.action === 'neutralize' || result.action === 'flag') && result.neutralized && activeAdapter) {
     // Get mode for injection styling
     const settings = await getSettings();
     const el = post.domRef.deref();
 
     if (el) {
       injectIntoElement(el, result.neutralized, settings.mode);
-    } else {
+    } else if (result.action === 'neutralize') {
+      // Only fallback-replace for neutralize (child/teen), not flag (adult)
       activeAdapter.replaceContent(post.domRef, result.neutralized.rewrittenText);
     }
 
@@ -59,7 +60,7 @@ async function onPostDetected(post: PostContent): Promise<void> {
       timestamp: new Date().toISOString(),
     }).catch(() => {}); // ignore if popup not open
 
-    console.log(`[FeelingWise] Neutralized post ${post.id}`);
+    console.log(`[FeelingWise] ${result.action === 'flag' ? 'Flagged' : 'Neutralized'} post ${post.id}`);
   }
 }
 

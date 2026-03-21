@@ -38,6 +38,16 @@ function chromeExtensionManifest(): Plugin {
         manifest.background.service_worker = inputToOutput[swSrc];
       }
 
+      // Rewrite action.default_popup path
+      if (manifest.action?.default_popup) {
+        for (const fileName of Object.keys(bundle)) {
+          if (fileName.endsWith('.html') && fileName.includes('popup')) {
+            manifest.action.default_popup = fileName;
+            break;
+          }
+        }
+      }
+
       // Rewrite side_panel default_path (HTML pages are emitted by Vite)
       if (manifest.side_panel?.default_path) {
         for (const fileName of Object.keys(bundle)) {

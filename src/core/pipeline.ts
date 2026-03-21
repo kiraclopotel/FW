@@ -12,7 +12,7 @@ import { neutralize } from './neutralizer';
 import { getSettings, incrementNeutralized } from '../storage/settings';
 
 export interface PipelineResult {
-  action: 'pass' | 'neutralize';
+  action: 'pass' | 'neutralize' | 'flag';
   neutralized?: NeutralizedContent;
 }
 
@@ -66,27 +66,23 @@ export async function process(post: PostContent): Promise<PipelineResult> {
       return PASS;
     }
 
-    // Step 3: Apply confidence thresholds
-    let shouldNeutralize = false;
+    // Step 3: Apply mode-aware confidence thresholds
+    const threshold = settings.mode === 'child' ? 0.60
+                    : settings.mode === 'teen' ? 0.70
+                    : 0.80;
 
-    if (analysis.overallConfidence > 0.85) {
-      shouldNeutralize = true;
-    } else if (analysis.overallConfidence >= 0.60) {
-      // Proceed with severity reduced by 1
+    if (analysis.overallConfidence < threshold) {
+      console.log(`[FeelingWise] Pipeline: PASS (confidence ${analysis.overallConfidence.toFixed(2)} < threshold ${threshold})`);
+      return PASS;
+    }
+
+    // Reduce severity for borderline detections
+    if (analysis.overallConfidence < threshold + 0.15) {
       for (const t of analysis.techniques) {
         if (t.present) {
           t.severity = Math.max(1, t.severity - 1);
         }
       }
-      shouldNeutralize = true;
-    } else {
-      // Low confidence → PASS (callAI handles provider routing)
-      console.log(`[FeelingWise] Pipeline: PASS (low confidence)`);
-      return PASS;
-    }
-
-    if (!shouldNeutralize) {
-      return PASS;
     }
 
     // Step 4: Neutralize
@@ -101,8 +97,14 @@ export async function process(post: PostContent): Promise<PipelineResult> {
     await incrementNeutralized();
 
     const totalMs = performance.now() - startTime;
-    console.log(`[FeelingWise] Pipeline: NEUTRALIZE (${totalMs.toFixed(0)}ms)`);
 
+    // Adult mode: flag only (show indicator, don't replace text)
+    if (settings.mode === 'adult') {
+      console.log(`[FeelingWise] Pipeline: FLAG (${totalMs.toFixed(0)}ms)`);
+      return { action: 'flag', neutralized };
+    }
+
+    console.log(`[FeelingWise] Pipeline: NEUTRALIZE (${totalMs.toFixed(0)}ms)`);
     return { action: 'neutralize', neutralized };
   } catch (err) {
     // CARDINAL RULE: any exception → PASS
