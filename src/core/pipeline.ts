@@ -42,21 +42,24 @@ export async function process(post: PostContent): Promise<PipelineResult> {
       romanian,
     });
 
-    // If zero triggers and not Romanian → check suspicion heuristics for sampling
+    // If zero triggers: check if Romanian (always send to AI) or use suspicion sampling
     let wasSampled = false;
-    if (detected.length === 0 && !romanian) {
-      const settings = await getSettings();
-      const suspicion = scoreSuspicion(post.text);
-
-      if (!shouldSample(suspicion.total, settings.totalChecksToday, settings.dailyCap)) {
-        console.log(`[FeelingWise] Pipeline: PASS (no triggers, suspicion ${suspicion.total.toFixed(2)}, not sampled)`);
-        return PASS;
+    if (detected.length === 0) {
+      if (romanian) {
+        console.log(`[FeelingWise] Pipeline: ROMANIAN DETECTED — sending to L2 for full analysis`);
+        wasSampled = true;
+        // Fall through to Layer 2
+      } else {
+        const settings = await getSettings();
+        const suspicion = scoreSuspicion(post.text);
+        if (!shouldSample(suspicion.total, settings.totalChecksToday, settings.dailyCap)) {
+          console.log(`[FeelingWise] Pipeline: PASS (no triggers, suspicion ${suspicion.total.toFixed(2)}, not sampled)`);
+          return PASS;
+        }
+        console.log(`[FeelingWise] Pipeline: SAMPLED (suspicion ${suspicion.total.toFixed(2)})`);
+        wasSampled = true;
+        // Fall through to Layer 2
       }
-
-      console.log(`[FeelingWise] Pipeline: SAMPLED (suspicion ${suspicion.total.toFixed(2)})`);
-      wasSampled = true;
-      // Fall through to Layer 2 with empty technique list
-      // L2 AI will do full analysis from scratch
     }
 
     // Step 2: Layer 2 — AI verification via callAI()
