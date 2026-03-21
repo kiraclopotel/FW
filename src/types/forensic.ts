@@ -1,6 +1,6 @@
 // FeelingWise - Forensic record types
 
-import { Platform } from './post';
+import { Platform, FeedSource } from './post';
 
 export interface ForensicRecord {
   id: string;
@@ -16,5 +16,6 @@ export interface ForensicRecord {
   overallScore: number;
   userAgeCategory: 'child' | 'teen' | 'adult';
   aiSource: 'local' | 'cloud';
+  feedSource: FeedSource;
   integrityHash: string;
 }

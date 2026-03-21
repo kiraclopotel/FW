@@ -3,7 +3,7 @@
 
 import { ForensicRecord } from '../types/forensic';
 import { AnalysisResult } from '../types/analysis';
-import { Platform } from '../types/post';
+import { Platform, FeedSource } from '../types/post';
 import { Mode } from '../types/mode';
 import { sha256 } from './hasher';
 import { addRecord } from './store';
@@ -27,6 +27,7 @@ async function computeIntegrityHash(record: Omit<ForensicRecord, 'integrityHash'
     overallScore: record.overallScore,
     userAgeCategory: record.userAgeCategory,
     aiSource: record.aiSource,
+    feedSource: record.feedSource,
   });
   return sha256(payload);
 }
@@ -40,6 +41,7 @@ export async function logForensicEvent(
   aiSource: 'local' | 'cloud',
   author?: string,
   postUrl?: string,
+  feedSource?: FeedSource,
 ): Promise<void> {
   try {
     const originalHash = await sha256(originalText);
@@ -62,6 +64,7 @@ export async function logForensicEvent(
       overallScore: analysis.overallScore,
       userAgeCategory: modeToAgeCategory(mode),
       aiSource,
+      feedSource: feedSource ?? 'unknown',
     };
 
     console.log(`[FeelingWise] Forensic: logging neutralization for post ${partial.id}`);

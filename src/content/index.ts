@@ -85,6 +85,7 @@ async function onPostDetected(post: PostContent): Promise<void> {
         aiSource: result.neutralized.aiSource,
         author: post.author,
         postUrl,
+        feedSource: post.feedSource ?? 'unknown',
       },
     }).catch(err => { console.error('[FeelingWise] Forensic logging error:', err); });
 

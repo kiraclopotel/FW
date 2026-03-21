@@ -1,7 +1,7 @@
 // FeelingWise - Twitter/X platform adapter
 // Extracts tweet text via [data-testid="tweetText"] selector
 
-import { PostContent } from '../../types/post';
+import { PostContent, FeedSource } from '../../types/post';
 import { PlatformAdapter } from './adapter';
 
 export class TwitterAdapter implements PlatformAdapter {
@@ -18,6 +18,7 @@ export class TwitterAdapter implements PlatformAdapter {
 
   extractPosts(nodes: NodeList): PostContent[] {
     const posts: PostContent[] = [];
+    const feedSource = this._detectFeedSource();
 
     nodes.forEach((node) => {
       if (!(node instanceof HTMLElement)) return;
@@ -42,11 +43,25 @@ export class TwitterAdapter implements PlatformAdapter {
           timestamp: new Date().toISOString(),
           platform: 'twitter',
           domRef: new WeakRef(tweetEl),
+          feedSource,
         });
       }
     });
 
     return posts;
+  }
+
+  extractFollowState(article: Element | null): 'following' | 'not-following' | 'unknown' {
+    if (!article) return 'unknown';
+    try {
+      const unfollowBtn = article.querySelector('[data-testid$="-unfollow"]');
+      if (unfollowBtn) return 'following';
+      const followBtn = article.querySelector('[data-testid$="-follow"]');
+      if (followBtn) return 'not-following';
+      return 'unknown';
+    } catch {
+      return 'unknown';
+    }
   }
 
   replaceContent(domRef: WeakRef<HTMLElement>, newText: string): void {
@@ -106,5 +121,23 @@ export class TwitterAdapter implements PlatformAdapter {
     if (!statusLink) return null;
     const match = statusLink.href.match(/\/status\/(\d+)/);
     return match?.[1] ?? null;
+  }
+
+  private _detectFeedSource(): FeedSource {
+    try {
+      const path = window.location.pathname;
+      if (path.includes('/search')) return 'search';
+      if (path.includes('/status/')) return 'profile';
+      if (path === '/home' || path === '/') {
+        // Check active tab text to distinguish "For you" vs "Following"
+        const activeTab = document.querySelector('[role="tab"][aria-selected="true"]');
+        const tabText = activeTab?.textContent?.toLowerCase() ?? '';
+        if (tabText.includes('following')) return 'following';
+        if (tabText.includes('for you')) return 'for-you';
+      }
+      return 'unknown';
+    } catch {
+      return 'unknown';
+    }
   }
 }

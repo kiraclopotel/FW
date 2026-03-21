@@ -1,6 +1,6 @@
 import { StrictMode, useState, useEffect, CSSProperties } from 'react';
 import { createRoot } from 'react-dom/client';
-import { FWSettings, getSettings, saveSettings } from '../../storage/settings';
+import { FWSettings, getSettings, saveSettings, resetDailyStats } from '../../storage/settings';
 import { t, setLocale, Locale } from '../../i18n';
 
 // ─── Color palette ───
@@ -32,7 +32,7 @@ const PROVIDERS: {
   {
     id: 'deepseek',
     label: 'DeepSeek',
-    tagline: 'Fast \u2022 $ \u2014 Best value',
+    tagline: 'Fast • $ — Best value',
     placeholder: 'sk-...',
     link: 'https://console.deepseek.com',
     linkLabel: 'console.deepseek.com',
@@ -40,7 +40,7 @@ const PROVIDERS: {
   {
     id: 'anthropic',
     label: 'Claude',
-    tagline: 'Reliable \u2022 $$',
+    tagline: 'Reliable • $$',
     placeholder: 'sk-ant-...',
     link: 'https://console.anthropic.com',
     linkLabel: 'console.anthropic.com',
@@ -48,7 +48,7 @@ const PROVIDERS: {
   {
     id: 'openai',
     label: 'GPT',
-    tagline: 'Reliable \u2022 $$',
+    tagline: 'Reliable • $$',
     placeholder: 'sk-...',
     link: 'https://platform.openai.com',
     linkLabel: 'platform.openai.com',
@@ -56,7 +56,7 @@ const PROVIDERS: {
   {
     id: 'gemini',
     label: 'Gemini',
-    tagline: 'Fast \u2022 $ \u2014 Google',
+    tagline: 'Fast • $ — Google',
     placeholder: 'AIza...',
     link: 'https://aistudio.google.com',
     linkLabel: 'aistudio.google.com',
@@ -100,6 +100,13 @@ function Popup() {
     return () => chrome.storage.onChanged.removeListener(handler);
   }, []);
 
+  // Fix white border/bleed around popup
+  useEffect(() => {
+    document.body.style.margin = '0';
+    document.body.style.padding = '0';
+    document.body.style.background = '#0a0a0a';
+  }, []);
+
   if (!settings) return null;
 
   const update = async (partial: Partial<FWSettings>) => {
@@ -114,6 +121,7 @@ function Popup() {
     color: C.text,
     fontFamily: font,
     fontSize: 13,
+    margin: 0,
   };
 
   return (
@@ -191,12 +199,14 @@ function SetupScreen({ settings, update, onDone }: {
               padding: '6px 2px',
               fontSize: 11,
               fontWeight: 500,
-              background: provider === p.id ? C.teal : C.card,
-              color: provider === p.id ? C.bg : C.muted,
-              border: `1px solid ${provider === p.id ? C.teal : C.border}`,
-              borderRadius: 4,
+              background: 'transparent',
+              color: provider === p.id ? C.teal : C.muted,
+              border: 'none',
+              borderBottom: provider === p.id ? `2px solid ${C.teal}` : '2px solid transparent',
+              borderRadius: 0,
               cursor: 'pointer',
               fontFamily: font,
+              transition: 'all 0.15s ease',
             }}
           >
             {p.label}
@@ -264,6 +274,8 @@ function SetupScreen({ settings, update, onDone }: {
       {/* Save button */}
       <button
         onClick={handleSave}
+        onMouseOver={e => (e.currentTarget.style.opacity = '0.9')}
+        onMouseOut={e => (e.currentTarget.style.opacity = '1')}
         style={{
           width: '100%',
           padding: '10px 0',
@@ -275,6 +287,7 @@ function SetupScreen({ settings, update, onDone }: {
           borderRadius: 6,
           cursor: 'pointer',
           fontFamily: font,
+          transition: 'all 0.15s ease',
         }}
       >
         {t('connectStart')}
@@ -293,7 +306,7 @@ function MainScreen({ settings, update, onSettings }: {
 }) {
   const isActive = hasApiKey(settings);
   const modes = ['child', 'teen', 'adult'] as const;
-  const modeIcons = { child: '\uD83D\uDD12', teen: '\uD83D\uDCD6', adult: '\uD83D\uDC41' };
+  const modeIcons = { child: '🔒', teen: '📖', adult: '👁' };
 
   return (
     <div>
@@ -314,7 +327,7 @@ function MainScreen({ settings, update, onSettings }: {
             borderRadius: '50%',
             background: isActive ? C.green : C.red,
             display: 'inline-block',
-            animation: !isActive ? 'fw-pulse 1.5s ease-in-out infinite' : undefined,
+            animation: isActive ? 'fw-active-pulse 2s ease-in-out infinite' : 'fw-pulse 1.5s ease-in-out infinite',
           }} />
           {isActive ? (
             <span style={{ color: C.muted }}>{t('active')}</span>
@@ -332,17 +345,8 @@ function MainScreen({ settings, update, onSettings }: {
       {/* Credit battery */}
       {settings.managedCredits > 0 && <CreditBattery credits={settings.managedCredits} />}
 
-      {/* Today's stats */}
-      <div style={{ display: 'flex', gap: 8, padding: 16 }}>
-        <StatCard value={settings.totalChecksToday} label={t('postsScanned')} />
-        <StatCard value={settings.totalNeutralizedToday} label={t('neutralized')} />
-      </div>
-
-      {/* Token usage */}
-      <div style={{ padding: '0 16px 12px', fontSize: 11, color: C.muted, display: 'flex', justifyContent: 'space-between' }}>
-        <span>{settings.totalTokensToday.toLocaleString()} {t('tokensUsed')}</span>
-        <span>~${(settings.estimatedCostToday / 100).toFixed(3)}</span>
-      </div>
+      {/* Usage card */}
+      <UsageCard settings={settings} />
 
       {/* Daily cap */}
       <div style={{ padding: '0 16px 16px' }}>
@@ -381,6 +385,8 @@ function MainScreen({ settings, update, onSettings }: {
               cursor: 'pointer',
               textAlign: 'center',
               fontFamily: font,
+              boxShadow: settings.mode === m ? `0 0 0 1px ${C.teal}40` : 'none',
+              transition: 'all 0.15s ease',
             }}
           >
             <div style={{ fontSize: 16 }}>{modeIcons[m]}</div>
@@ -411,9 +417,10 @@ function MainScreen({ settings, update, onSettings }: {
             borderRadius: 6,
             cursor: 'pointer',
             fontFamily: font,
+            transition: 'all 0.15s ease',
           }}
         >
-          View Dashboard
+          → View Dashboard
         </button>
       </div>
 
@@ -428,7 +435,7 @@ function MainScreen({ settings, update, onSettings }: {
           cursor: 'pointer',
         }}
       >
-        \u2699 {t('settings')}
+        ⚙ {t('settings')}
       </div>
     </div>
   );
@@ -470,6 +477,60 @@ function CreditBattery({ credits }: { credits: number }) {
   );
 }
 
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return String(n);
+}
+
+function UsageCard({ settings }: { settings: FWSettings }) {
+  const hdr: CSSProperties = { fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 };
+  const cell: CSSProperties = { padding: '4px 6px', fontSize: 12, textAlign: 'right' };
+  const labelCell: CSSProperties = { ...cell, textAlign: 'left', fontWeight: 500 };
+
+  return (
+    <div style={{ padding: '12px 16px' }}>
+      <div style={{
+        background: C.card,
+        border: `1px solid ${C.border}`,
+        borderRadius: 8,
+        padding: 14,
+      }}>
+        <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+          Usage
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={{ ...hdr, textAlign: 'left', padding: '2px 6px' }}></th>
+              <th style={{ ...hdr, textAlign: 'right', padding: '2px 6px' }}>Checks</th>
+              <th style={{ ...hdr, textAlign: 'right', padding: '2px 6px' }}>Fixed</th>
+              <th style={{ ...hdr, textAlign: 'right', padding: '2px 6px' }}>Tokens</th>
+              <th style={{ ...hdr, textAlign: 'right', padding: '2px 6px' }}>Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style={{ ...labelCell, color: C.text }}>Today</td>
+              <td style={{ ...cell, color: C.text }}>{settings.totalChecksToday}</td>
+              <td style={{ ...cell, color: C.text }}>{settings.totalNeutralizedToday}</td>
+              <td style={{ ...cell, color: C.text }}>{formatTokens(settings.totalTokensToday)}</td>
+              <td style={{ ...cell, color: C.text }}>~${(settings.estimatedCostToday / 100).toFixed(3)}</td>
+            </tr>
+            <tr>
+              <td style={{ ...labelCell, color: C.muted, fontSize: 11 }}>All time</td>
+              <td style={{ ...cell, color: C.muted, fontSize: 11 }}>{settings.totalChecksAllTime}</td>
+              <td style={{ ...cell, color: C.muted, fontSize: 11 }}>{settings.totalNeutralizedAllTime}</td>
+              <td style={{ ...cell, color: C.muted, fontSize: 11 }}>{formatTokens(settings.totalTokensAllTime)}</td>
+              <td style={{ ...cell, color: C.muted, fontSize: 11 }}>~${(settings.estimatedCostAllTime / 100).toFixed(2)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ════════════════════════════════════
 // SCREEN 3: SETTINGS
 // ════════════════════════════════════
@@ -486,13 +547,13 @@ function SettingsScreen({ settings, update, onBack, onChangeKey }: {
       {/* Header */}
       <div style={{
         display: 'flex',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        gap: 8,
         height: 48,
         padding: '0 16px',
         borderBottom: `1px solid ${C.border}`,
       }}>
-        <span onClick={onBack} style={{ cursor: 'pointer', fontSize: 16 }}>\u2190</span>
+        <span onClick={onBack} style={{ cursor: 'pointer', fontSize: 13, color: C.muted, display: 'flex', alignItems: 'center', gap: 4 }}>← Back to main</span>
         <span style={{ fontSize: 14, fontWeight: 500 }}>{t('settings')}</span>
       </div>
 
@@ -508,7 +569,12 @@ function SettingsScreen({ settings, update, onBack, onChangeKey }: {
             justifyContent: 'space-between',
             alignItems: 'center',
           }}>
-            <span>{providerLabel}</span>
+            <div>
+              <span>{providerLabel}</span>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                {settings.totalChecksToday} checks today · {formatTokens(settings.totalTokensToday)} tokens
+              </div>
+            </div>
             <button
               onClick={onChangeKey}
               style={{
@@ -520,6 +586,7 @@ function SettingsScreen({ settings, update, onBack, onChangeKey }: {
                 borderRadius: 4,
                 cursor: 'pointer',
                 fontFamily: font,
+                transition: 'all 0.15s ease',
               }}
             >
               {t('changeApiKey')}
@@ -559,12 +626,14 @@ function SettingsScreen({ settings, update, onBack, onChangeKey }: {
                   padding: '6px 0',
                   fontSize: 12,
                   fontWeight: 500,
-                  background: settings.locale === loc ? C.teal : C.card,
-                  color: settings.locale === loc ? C.bg : C.muted,
-                  border: `1px solid ${settings.locale === loc ? C.teal : C.border}`,
-                  borderRadius: 4,
+                  background: 'transparent',
+                  color: settings.locale === loc ? C.teal : C.muted,
+                  border: 'none',
+                  borderBottom: settings.locale === loc ? `2px solid ${C.teal}` : '2px solid transparent',
+                  borderRadius: 0,
                   cursor: 'pointer',
                   fontFamily: font,
+                  transition: 'all 0.15s ease',
                 }}
               >
                 {loc.toUpperCase()}
@@ -574,7 +643,7 @@ function SettingsScreen({ settings, update, onBack, onChangeKey }: {
         </div>
 
         {/* About */}
-        <div>
+        <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>{t('about')}</div>
           <div style={{ fontSize: 12, color: C.muted, lineHeight: '1.6' }}>
             FeelingWise v0.1<br />
@@ -593,9 +662,32 @@ function SettingsScreen({ settings, update, onBack, onChangeKey }: {
               borderRadius: 4,
               cursor: 'pointer',
               fontFamily: font,
+              transition: 'all 0.15s ease',
             }}
           >
             Full Dashboard
+          </button>
+        </div>
+
+        {/* Reset daily stats */}
+        <div>
+          <button
+            onClick={async () => { await resetDailyStats(); const s = await getSettings(); update(s); }}
+            style={{
+              width: '100%',
+              padding: '8px 0',
+              fontSize: 12,
+              fontWeight: 500,
+              background: 'transparent',
+              color: C.red,
+              border: `1px solid ${C.border}`,
+              borderRadius: 4,
+              cursor: 'pointer',
+              fontFamily: font,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            Reset daily stats
           </button>
         </div>
       </div>
@@ -634,7 +726,8 @@ function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: b
 
 // ─── Pulse animation ───
 const style = document.createElement('style');
-style.textContent = `@keyframes fw-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`;
+style.textContent = `@keyframes fw-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@keyframes fw-active-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`;
 document.head.appendChild(style);
 
 // ─── Mount ───
