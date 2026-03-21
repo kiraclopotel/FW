@@ -14,4 +14,4 @@ export interface PostContent {
   feedSource?: FeedSource;
 }
 
-export type Platform = 'twitter' | 'instagram' | 'tiktok' | 'facebook' | 'youtube';
+export type Platform = 'twitter' | 'instagram' | 'tiktok' | 'facebook' | 'youtube' | 'reddit' | '4chan';
