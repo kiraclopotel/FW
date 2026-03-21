@@ -32,7 +32,7 @@ export class TwitterAdapter implements PlatformAdapter {
         if (!text) continue;
 
         const article = tweetEl.closest('article');
-        const author = this._extractAuthor(article);
+        const author = this._extractHandle(article) ?? this._extractAuthor(article);
         const tweetId = this._extractTweetId(article) ?? crypto.randomUUID();
 
         posts.push({
@@ -75,6 +75,19 @@ export class TwitterAdapter implements PlatformAdapter {
     );
 
     return results;
+  }
+
+  private _extractHandle(article: Element | null): string | null {
+    if (!article) return null;
+    // Twitter articles contain profile links like href="/RealAlexJones"
+    const links = article.querySelectorAll<HTMLAnchorElement>('a[href^="/"][role="link"]');
+    for (const link of links) {
+      const href = link.getAttribute('href') ?? '';
+      if (/^\/[A-Za-z0-9_]+$/.test(href)) {
+        return href.slice(1); // strip leading /
+      }
+    }
+    return null;
   }
 
   private _extractAuthor(article: Element | null): string {

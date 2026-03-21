@@ -24,15 +24,15 @@ const TECHNIQUE_NAMES: Record<TechniqueName, string> = {
 };
 
 const TECHNIQUE_EXPLANATIONS: Record<TechniqueName, string> = {
-  'fear-appeal': 'This post tries to frighten you so you don\'t think clearly about the claim.',
-  'shame-attack': 'This post tries to make you feel bad about yourself to change your behavior.',
-  'anger-trigger': 'This post uses inflammatory language to make you angry before you can think.',
-  'false-urgency': 'This post creates fake time pressure so you act before you think.',
+  'fear-appeal': 'This post amplifies fear beyond what the facts support, trying to make you act from panic rather than from understanding.',
+  'shame-attack': 'This post attacks someone\'s character or identity instead of addressing their actions or policies. It wants you to feel contempt, not think critically.',
+  'anger-trigger': 'This post uses dehumanizing or inflammatory words designed to make you angry before you evaluate the actual claim. Angry people share more and think less.',
+  'false-urgency': 'This post creates artificial time pressure \u2014 MUST WATCH, ACT NOW \u2014 to make you engage before you think about whether it matters.',
   'bandwagon': 'This post falsely claims everyone agrees, to make you feel left out if you don\'t.',
-  'scapegoating': 'This post blames a group for complex problems to give you a simple enemy.',
+  'scapegoating': 'This post blames a complex situation on a specific person or group, giving you a simple villain instead of helping you understand the real causes.',
   'fomo': 'This post manufactures exclusivity so you fear missing out on something.',
   'toxic-positivity': 'This post dismisses real feelings by forcing artificial optimism.',
-  'misleading-format': 'This post uses visual tricks like CAPS to manipulate your attention.',
+  'misleading-format': 'This post uses ALL CAPS, excessive punctuation, or visual tricks to grab your attention and bypass your normal reading process.',
   'combined': 'This post uses multiple manipulation techniques at the same time.',
 };
 
@@ -461,8 +461,10 @@ function injectTeen(el: HTMLElement, neutralized: NeutralizedContent, visible: b
   // Don't add pill if already there
   if (el.parentElement?.querySelector('.fw-teen-pill')) return;
 
-  const technique = getPrimaryTechnique(neutralized);
-  const techniqueName = TECHNIQUE_NAMES[technique];
+  // Get ALL present techniques for display
+  const presentTechniques = neutralized.analysis.techniques.filter(t => t.present);
+  const pillTechnique = getPrimaryTechnique(neutralized);
+  const pillTechniqueName = TECHNIQUE_NAMES[pillTechnique];
 
   // Create compact inline pill — just "✦ reframed", technique on hover
   const pill = document.createElement('span');
@@ -472,7 +474,7 @@ function injectTeen(el: HTMLElement, neutralized: NeutralizedContent, visible: b
   const label = document.createTextNode('\u2726 reframed');
   const techSpan = document.createElement('span');
   techSpan.className = 'fw-pill-technique';
-  techSpan.textContent = ` \u00b7 ${techniqueName}`;
+  techSpan.textContent = ` \u00b7 ${pillTechniqueName}`;
 
   pill.appendChild(label);
   pill.appendChild(techSpan);
@@ -492,14 +494,25 @@ function injectTeen(el: HTMLElement, neutralized: NeutralizedContent, visible: b
     const panel = document.createElement('div');
     panel.className = 'fw-teen-panel';
     if (visible) panel.classList.add('fw-animate-in');
+
+    // Build technique blocks — show EACH detected technique individually
+    let techniquesHtml = '';
+    for (const t of presentTechniques) {
+      const name = TECHNIQUE_NAMES[t.technique] ?? t.technique;
+      const explanation = TECHNIQUE_EXPLANATIONS[t.technique] ?? '';
+      const question = TECHNIQUE_QUESTIONS[t.technique] ?? '';
+      techniquesHtml += `
+        <div class="fw-panel-label">${escapeHtml(name)} (severity ${t.severity}/10)</div>
+        <div class="fw-panel-explanation">${escapeHtml(explanation)}</div>
+        <div class="fw-panel-question">\u2192 ${escapeHtml(question)}</div>
+      `;
+    }
+
     panel.innerHTML = `
       <div class="fw-panel-header">\u2726 FeelingWise spotted something</div>
       <div class="fw-panel-label">Original</div>
       <div class="fw-panel-original">${escapeHtml(originalText)}</div>
-      <div class="fw-panel-label">${escapeHtml(techniqueName)}</div>
-      <div class="fw-panel-explanation">${escapeHtml(TECHNIQUE_EXPLANATIONS[technique])}</div>
-      <div class="fw-panel-label">Think about it</div>
-      <div class="fw-panel-question">${escapeHtml(TECHNIQUE_QUESTIONS[technique])}</div>
+      ${techniquesHtml}
       <button class="fw-teen-gotit">Got it</button>
     `;
 
