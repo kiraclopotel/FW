@@ -4,6 +4,7 @@
 
 import { detectCurrentPlatform } from './platforms/adapter';
 import { TwitterAdapter } from './platforms/twitter';
+import { FacebookAdapter } from './platforms/facebook';
 import { ContentInterceptor } from './interceptor';
 import { PostContent } from '../types/post';
 import { PlatformAdapter } from './platforms/adapter';
@@ -68,7 +69,8 @@ function resolveAdapter(platform: ReturnType<typeof detectCurrentPlatform>) {
   switch (platform) {
     case 'twitter':
       return new TwitterAdapter();
-    // Phase 10: other platforms added here
+    case 'facebook':
+      return new FacebookAdapter();
     default:
       return null;
   }
