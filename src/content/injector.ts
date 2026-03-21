@@ -269,13 +269,13 @@ button.fw-teen-gotit:hover {
   background: rgba(231, 233, 234, 0.1) !important;
 }
 
-/* Adult mode dot — positioned to avoid Twitter's 3-dot menu (top-right) */
+/* Adult mode dot — top-left to avoid ALL Twitter interactive buttons */
 span.fw-adult-dot {
   position: absolute !important;
-  bottom: 8px !important;
-  right: 12px !important;
-  width: 6px !important;
-  height: 6px !important;
+  top: 8px !important;
+  left: 8px !important;
+  width: 5px !important;
+  height: 5px !important;
   border-radius: 50% !important;
   background: #ffab40 !important;
   cursor: pointer !important;
@@ -294,8 +294,8 @@ span.fw-adult-dot.fw-seen {
 /* Adult dot tooltip */
 div.fw-dot-tooltip {
   position: absolute !important;
-  bottom: 14px !important;
-  right: 0 !important;
+  top: 14px !important;
+  left: 0 !important;
   background: rgb(22, 24, 28) !important;
   border: 1px solid rgb(47, 51, 54) !important;
   border-radius: 8px !important;
@@ -542,7 +542,7 @@ function injectAdult(el: HTMLElement, neutralized: NeutralizedContent, visible: 
     .reduce((max, t) => Math.max(max, t.severity), 0);
   const confidence = Math.round(neutralized.analysis.overallConfidence * 100);
 
-  // Create amber dot — positioned bottom-right to avoid Twitter's 3-dot menu
+  // Create amber dot — positioned top-left to avoid all Twitter interactive buttons
   const dot = document.createElement('span');
   dot.className = 'fw-adult-dot';
   if (visible) dot.classList.add('fw-animate-in');
