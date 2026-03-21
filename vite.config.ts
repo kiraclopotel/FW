@@ -38,18 +38,8 @@ function chromeExtensionManifest(): Plugin {
         manifest.background.service_worker = inputToOutput[swSrc];
       }
 
-      // Rewrite content_scripts js paths
-      if (manifest.content_scripts) {
-        for (const cs of manifest.content_scripts) {
-          cs.js = cs.js.map((src: string) => inputToOutput[src] || src);
-        }
-      }
-
       // Rewrite side_panel default_path (HTML pages are emitted by Vite)
-      // HTML entry points are emitted at their chunk name, e.g. "sidepanel.html"
       if (manifest.side_panel?.default_path) {
-        const spSrc = manifest.side_panel.default_path;
-        // Find the matching HTML asset in the bundle
         for (const fileName of Object.keys(bundle)) {
           if (fileName.endsWith('.html') && fileName.includes('sidepanel')) {
             manifest.side_panel.default_path = fileName;
@@ -68,7 +58,33 @@ function chromeExtensionManifest(): Plugin {
   };
 }
 
-export default defineConfig({
+// Two-phase build controlled by BUILD_TARGET env var:
+// 1. Main build (default): HTML pages + service worker (ESM format)
+// 2. Content script build (BUILD_TARGET=content): IIFE, self-contained, no WebLLM
+const isContentBuild = process.env.BUILD_TARGET === 'content';
+
+export default defineConfig(isContentBuild ? {
+  // --- Content script build (IIFE, self-contained) ---
+  build: {
+    outDir: 'dist',
+    emptyOutDir: false, // Don't clear the main build output
+    rollupOptions: {
+      input: {
+        content: resolve(__dirname, 'src/content/index.ts'),
+      },
+      output: {
+        format: 'iife',
+        entryFileNames: 'content.js',
+        inlineDynamicImports: true,
+      },
+    },
+  },
+  test: {
+    globals: true,
+    environment: 'node',
+  },
+} : {
+  // --- Main build (ESM - service worker, HTML pages, manifest) ---
   plugins: [react(), chromeExtensionManifest()],
   build: {
     outDir: 'dist',
@@ -79,13 +95,10 @@ export default defineConfig({
         sidepanel: resolve(__dirname, 'src/ui/sidepanel/index.html'),
         dashboard: resolve(__dirname, 'src/ui/dashboard/index.html'),
         learning: resolve(__dirname, 'src/ui/learning/index.html'),
-        content: resolve(__dirname, 'src/content/index.ts'),
         'service-worker': resolve(__dirname, 'src/background/service-worker.ts'),
       },
       output: {
-        // Keep entry chunk names predictable for manifest rewriting
         entryFileNames: (chunkInfo) => {
-          if (chunkInfo.name === 'content') return 'content.js';
           if (chunkInfo.name === 'service-worker') return 'service-worker.js';
           return 'assets/[name]-[hash].js';
         },

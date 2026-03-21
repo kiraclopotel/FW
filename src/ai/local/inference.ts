@@ -1,27 +1,17 @@
 // FeelingWise - Local inference wrapper
-// Accepts prompt, returns generated text. Handles tokenization and config.
-
-import { getEngine, isReady } from './model-manager';
+// Proxies inference requests to the service worker via chrome.runtime.sendMessage.
+// The service worker holds the WebLLM engine; content scripts cannot use WebGPU.
 
 export async function runInference(system: string, user: string): Promise<string> {
   try {
-    if (!isReady()) return '';
-
-    const engine = getEngine();
-    if (!engine) return '';
-
-    const reply = await engine.chat.completions.create({
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-      temperature: 0.1,
-      max_tokens: 1024,
+    const response = await chrome.runtime.sendMessage({
+      type: 'FW_INFER',
+      system,
+      user,
     });
-
-    return reply.choices[0]?.message?.content ?? '';
+    return response?.text ?? '';
   } catch (err) {
-    console.error('[FeelingWise] Inference failed:', err);
+    console.error('[FeelingWise] Inference message failed:', err);
     return '';
   }
 }

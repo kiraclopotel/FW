@@ -11,7 +11,6 @@ import { verifyWithContext } from './context-analyzer';
 import { neutralize } from './neutralizer';
 import { route, callCloud } from '../ai/router';
 import { getSettings } from '../storage/settings';
-import { isReady } from '../ai/local/model-manager';
 
 export interface PipelineResult {
   action: 'pass' | 'neutralize';
@@ -49,12 +48,8 @@ export async function process(post: PostContent): Promise<PipelineResult> {
       return PASS;
     }
 
-    // Step 2: Layer 2 — AI verification
-    if (!isReady()) {
-      console.log(`[FeelingWise] Pipeline: PASS (model not ready)`);
-      return PASS;
-    }
-
+    // Step 2: Layer 2 — AI verification (via message passing to service worker)
+    // If model isn't ready, verifyWithContext returns capped L1 results (inference returns '')
     const analysis = await verifyWithContext(post.text, techniques, romanian);
     analysis.postId = post.id;
 
