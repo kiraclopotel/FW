@@ -6,6 +6,7 @@ import { detectCurrentPlatform } from './platforms/adapter';
 import { TwitterAdapter } from './platforms/twitter';
 import { FacebookAdapter } from './platforms/facebook';
 import { FourchanAdapter } from './platforms/fourchan';
+import { YoutubeAdapter } from './platforms/youtube';
 import { ContentInterceptor } from './interceptor';
 import { PostContent } from '../types/post';
 import { PlatformAdapter } from './platforms/adapter';
@@ -122,6 +123,8 @@ function resolveAdapter(platform: ReturnType<typeof detectCurrentPlatform>) {
       return null;
     case '4chan':
       return new FourchanAdapter();
+    case 'youtube':
+      return new YoutubeAdapter();
     default:
       return null;
   }
