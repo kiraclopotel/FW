@@ -72,7 +72,7 @@ export default defineConfig({
   plugins: [react(), chromeExtensionManifest()],
   build: {
     outDir: 'dist',
-    emptyDirBeforeWrite: true,
+    emptyOutDir: true,
     rollupOptions: {
       input: {
         popup: resolve(__dirname, 'src/ui/popup/index.html'),
