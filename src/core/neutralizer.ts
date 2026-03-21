@@ -4,18 +4,9 @@ import { AnalysisResult } from '../types/analysis';
 import { NeutralizedContent } from '../types/neutralization';
 import { NEUTRALIZATION_SYSTEM, NEUTRALIZATION_USER_TEMPLATE } from '../ai/prompts';
 import { callAI } from '../ai/client';
+import { sha256 } from '../forensics/hasher';
 
 const FORBIDDEN_PATTERN = /manipulat|propaganda|technique|fallacy|rhetoric/i;
-
-function simpleHash(text: string): string {
-  let hash = 0;
-  for (let i = 0; i < text.length; i++) {
-    const char = text.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0; // Convert to 32-bit integer
-  }
-  return Math.abs(hash).toString(16);
-}
 
 function validateNeutralization(original: string, rewritten: string): boolean {
   if (rewritten.length > original.length * 1.2) return false;
@@ -52,7 +43,7 @@ export async function neutralize(
 
     return {
       postId: analysis.postId,
-      originalHash: simpleHash(text),
+      originalHash: await sha256(text),
       rewrittenText: trimmed,
       analysis,
       aiSource: 'cloud',
