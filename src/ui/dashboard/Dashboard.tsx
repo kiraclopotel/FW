@@ -447,8 +447,8 @@ function ExportButton({ label, onClick }: { label: string; onClick: () => void }
         cursor: 'pointer',
         fontFamily: font,
       }}
-      onMouseEnter={(e: { target: HTMLElement }) => { e.target.style.borderColor = C.teal; }}
-      onMouseLeave={(e: { target: HTMLElement }) => { e.target.style.borderColor = C.border; }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = C.teal; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = C.border; }}
     >
       {label}
     </button>

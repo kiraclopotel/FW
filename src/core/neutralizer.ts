@@ -31,13 +31,12 @@ function validateNeutralization(original: string, rewritten: string): boolean {
   // Minimum length check
   if (rewritten.length < 5) return false;
 
-  // Length check: allow up to 200% for short posts (under 100 chars),
-  // 150% for medium posts, 130% for long posts.
-  // Short tweets that are terse and manipulative often need MORE words
-  // to express the same idea without the manipulation shorthand.
-  const maxRatio = original.length < 100 ? 2.0
-                 : original.length < 280 ? 1.5
-                 : 1.3;
+  // Length check: short manipulative posts use dense shorthand that needs
+  // more words to express neutrally, so we allow generous ratios for short text.
+  const maxRatio = original.length < 100 ? 3.0
+                 : original.length < 280 ? 2.0
+                 : original.length < 500 ? 1.8
+                 : 1.5;
   if (rewritten.length > original.length * maxRatio) return false;
 
   // Check for meta-commentary (AI breaking character)
