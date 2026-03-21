@@ -24,29 +24,29 @@ const TECHNIQUE_NAMES: Record<TechniqueName, string> = {
 };
 
 const TECHNIQUE_EXPLANATIONS: Record<TechniqueName, string> = {
-  'fear-appeal': 'This post amplifies fear beyond what the facts support, trying to make you act from panic rather than from understanding.',
-  'shame-attack': 'This post attacks someone\'s character or identity instead of addressing their actions or policies. It wants you to feel contempt, not think critically.',
-  'anger-trigger': 'This post uses dehumanizing or inflammatory words designed to make you angry before you evaluate the actual claim. Angry people share more and think less.',
-  'false-urgency': 'This post creates artificial time pressure \u2014 MUST WATCH, ACT NOW \u2014 to make you engage before you think about whether it matters.',
-  'bandwagon': 'This post falsely claims everyone agrees, to make you feel left out if you don\'t.',
-  'scapegoating': 'This post blames a complex situation on a specific person or group, giving you a simple villain instead of helping you understand the real causes.',
-  'fomo': 'This post manufactures exclusivity so you fear missing out on something.',
-  'toxic-positivity': 'This post dismisses real feelings by forcing artificial optimism.',
-  'misleading-format': 'This post uses ALL CAPS, excessive punctuation, or visual tricks to grab your attention and bypass your normal reading process.',
-  'combined': 'This post uses multiple manipulation techniques at the same time.',
+  'fear-appeal': 'This post amplifies fear beyond what the facts support, trying to make you act from panic rather than from understanding. Your brain\'s amygdala treats fear signals as emergencies, shutting down your prefrontal cortex — the part that evaluates evidence. That\'s why scared people make fast, bad decisions.',
+  'shame-attack': 'This post attacks someone\'s character or identity instead of addressing their actions or policies. It wants you to feel contempt, not think critically. Your brain processes personal attacks like physical pain — once you feel that sting, you stop evaluating the argument and start defending or attacking back.',
+  'anger-trigger': 'This post uses dehumanizing or inflammatory words designed to make you angry before you evaluate the actual claim. Angry people share more and think less. Anger narrows your attention to the target and floods your brain with cortisol, making you feel certain even when you shouldn\'t be.',
+  'false-urgency': 'This post creates artificial time pressure — MUST WATCH, ACT NOW — to make you engage before you think about whether it matters. Your brain has a scarcity bias: when something seems about to disappear, you value it more and skip the step where you ask "do I actually need this?"',
+  'bandwagon': 'This post falsely claims everyone agrees, pressuring you to conform. Your brain has a powerful conformity instinct — disagreeing with a perceived majority literally activates pain centers. Manipulators exploit this by making fringe views look mainstream so you\'ll go along to belong.',
+  'scapegoating': 'This post blames a complex situation on a specific person or group, giving you a simple villain instead of helping you understand the real causes. Your brain craves simple cause-and-effect stories. Blaming one target feels satisfying because it turns a confusing problem into a clear narrative with a clear enemy.',
+  'fomo': 'This post manufactures exclusivity so you fear missing out. Your brain weighs potential losses roughly twice as heavily as equivalent gains — so "you\'ll miss this" hits harder than "you\'ll gain this." FOMO bypasses rational evaluation by making you focus on what you might lose.',
+  'toxic-positivity': 'This post dismisses real feelings by forcing artificial optimism. Your brain needs to process negative emotions to learn from them. When someone says "just be positive," it shuts down that processing and makes you feel broken for having normal human reactions.',
+  'misleading-format': 'This post uses ALL CAPS, excessive punctuation, or visual tricks to grab your attention and bypass your normal reading process. Your brain treats visual intensity as importance — ALL CAPS triggers the same alert system as a warning sign. This makes you absorb the message before your critical thinking kicks in.',
+  'combined': 'This post layers multiple manipulation techniques at once. Each technique targets a different part of your brain\'s defense system. When they stack up, it\'s much harder to think clearly because you\'re processing fear, anger, or shame simultaneously.',
 };
 
 const TECHNIQUE_QUESTIONS: Record<TechniqueName, string> = {
-  'fear-appeal': 'What would you think of this claim if the scary words were removed?',
-  'shame-attack': 'Would you accept this opinion from a friend who said it kindly?',
-  'anger-trigger': 'Is this making you angry at the argument or at a person?',
-  'false-urgency': 'Would this still feel urgent if you waited 24 hours?',
-  'bandwagon': 'Do you actually know anyone who agrees with this?',
-  'scapegoating': 'Is one group really responsible for this whole problem?',
-  'fomo': 'Would you actually miss anything important if you ignored this?',
-  'toxic-positivity': 'Is it okay to feel the way you feel right now?',
-  'misleading-format': 'What does this post actually say without the formatting?',
-  'combined': 'How many different ways is this post trying to affect you?',
+  'fear-appeal': 'Try this: reread the claim but replace every scary word with a neutral one. Does the argument still hold up, or was fear doing all the work?',
+  'shame-attack': 'Ask yourself: is this post criticizing what someone DID, or who they ARE? If it\'s attacking identity, the goal is contempt, not understanding.',
+  'anger-trigger': 'Pause and notice: are you angry at an idea you disagree with, or at a person you\'ve been told to dislike? Those are very different things.',
+  'false-urgency': 'Test it: if you waited 24 hours and this turned out to be nothing, what would you have lost? Real emergencies don\'t need ALL CAPS to convince you.',
+  'bandwagon': 'Think about it: do you personally know anyone who holds this view, or is this post just telling you "everyone" does? Popularity can be manufactured.',
+  'scapegoating': 'Challenge the story: can you name at least three other causes for this problem? If you can, then blaming one group is oversimplifying on purpose.',
+  'fomo': 'Be honest: if you never saw this post, would your life actually be worse? FOMO works by making you imagine a loss that doesn\'t really exist.',
+  'toxic-positivity': 'Check in with yourself: is this post making space for how you actually feel, or is it telling you that your real emotions are wrong?',
+  'misleading-format': 'Try reading just the words, ignoring the CAPS and punctuation. Is the actual message as important as the formatting makes it seem?',
+  'combined': 'Count them: how many different emotions is this post trying to trigger at once? The more buttons it pushes, the less it trusts its own argument.',
 };
 
 // ─── MutationObserver guards ───
