@@ -82,17 +82,76 @@ function addGuard(el: HTMLElement, expectedText: string): void {
 }
 
 // ─── Span-aware text replacement ───
+// Twitter tweets use [data-testid="tweetText"] which contains multiple
+// <span> elements for text segments, plus <a> for links/mentions and
+// <img> for emoji. We preserve the DOM structure by placing text in the
+// first text-bearing span and hiding extra spans, while keeping non-text
+// nodes (emoji images, etc.) in place to avoid breaking layout.
 
 function replaceText(el: HTMLElement, text: string): void {
-  const spans = el.querySelectorAll('span');
-  if (spans.length > 0) {
-    spans[0].textContent = text;
-    for (let i = 1; i < spans.length; i++) {
-      spans[i].textContent = '';
+  // Pause guard during our own mutation to avoid re-entry
+  const existingGuard = guards.get(el);
+  if (existingGuard) existingGuard.disconnect();
+
+  try {
+    const children = Array.from(el.childNodes);
+    if (children.length === 0) {
+      el.textContent = text;
+      return;
     }
-  } else {
-    el.textContent = text;
+
+    // Find all direct child spans and text nodes (Twitter's structure)
+    let placed = false;
+    for (const child of children) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        if (!placed) {
+          child.textContent = text;
+          placed = true;
+        } else {
+          child.textContent = '';
+        }
+      } else if (child instanceof HTMLElement) {
+        if (child.tagName === 'SPAN') {
+          if (!placed) {
+            child.textContent = text;
+            child.style.display = '';
+            placed = true;
+          } else {
+            // Hide extra spans rather than emptying, to preserve layout space
+            child.style.display = 'none';
+          }
+        } else if (child.tagName === 'A') {
+          // Hide link spans (mentions, hashtags, urls) from original
+          child.style.display = 'none';
+        } else if (child.tagName === 'IMG') {
+          // Hide emoji images from original text
+          child.style.display = 'none';
+        }
+      }
+    }
+
+    // If no suitable child was found, fall back to textContent
+    if (!placed) {
+      el.textContent = text;
+    }
+  } finally {
+    // Re-observe if we had a guard
+    if (existingGuard) {
+      existingGuard.observe(el, { characterData: true, childList: true, subtree: true });
+    }
   }
+}
+
+// ─── Viewport detection ───
+
+function isInViewport(el: HTMLElement): boolean {
+  const rect = el.getBoundingClientRect();
+  return (
+    rect.top < window.innerHeight &&
+    rect.bottom > 0 &&
+    rect.left < window.innerWidth &&
+    rect.right > 0
+  );
 }
 
 // ─── CSS injection ───
@@ -105,106 +164,128 @@ function injectStyles(): void {
 
   const style = document.createElement('style');
   style.textContent = `
-/* Teen mode pill */
-div.fw-teen-pill {
+/* Teen mode pill — compact, inline, subtle footnote */
+span.fw-teen-pill {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 4px !important;
-  margin-top: 6px !important;
-  padding: 3px 10px !important;
-  background: rgba(0, 188, 212, 0.1) !important;
-  border: 1px solid rgba(0, 188, 212, 0.3) !important;
-  border-radius: 14px !important;
-  font-size: 11px !important;
-  color: #00bcd4 !important;
+  gap: 3px !important;
+  margin-top: 4px !important;
+  padding: 1px 7px !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 3px !important;
+  font-size: 12px !important;
+  color: rgba(0, 188, 212, 0.6) !important;
   cursor: pointer !important;
   user-select: none !important;
-  font-family: system-ui, sans-serif !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  line-height: 1.3 !important;
+  pointer-events: all !important;
+  transition: color 0.15s ease !important;
+  vertical-align: baseline !important;
+}
+span.fw-teen-pill:hover {
+  color: rgba(0, 188, 212, 0.9) !important;
+}
+span.fw-teen-pill .fw-pill-technique {
+  display: none !important;
+  font-size: 11px !important;
+  opacity: 0.7 !important;
+}
+span.fw-teen-pill:hover .fw-pill-technique {
+  display: inline !important;
+}
+
+/* Teen mode panel — Twitter-native dark theme */
+div.fw-teen-panel {
+  background: rgb(22, 24, 28) !important;
+  border: 1px solid rgb(47, 51, 54) !important;
+  border-radius: 16px !important;
+  padding: 12px 16px !important;
+  margin-top: 8px !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  font-size: 15px !important;
+  color: rgb(231, 233, 234) !important;
   line-height: 1.4 !important;
   pointer-events: all !important;
 }
-div.fw-teen-pill:hover {
-  background: rgba(0, 188, 212, 0.18) !important;
-}
-
-/* Teen mode panel */
-div.fw-teen-panel {
-  background: #141414 !important;
-  border: 1px solid #1e1e1e !important;
-  border-radius: 12px !important;
-  padding: 16px !important;
-  margin-top: 8px !important;
-  font-family: system-ui, sans-serif !important;
-  font-size: 13px !important;
-  color: #f0f0f0 !important;
-  line-height: 1.5 !important;
-  pointer-events: all !important;
-}
 div.fw-teen-panel .fw-panel-header {
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  color: #00bcd4 !important;
-  margin-bottom: 12px !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: rgb(231, 233, 234) !important;
+  margin-bottom: 8px !important;
 }
 div.fw-teen-panel .fw-panel-label {
-  font-size: 10px !important;
-  color: #888 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.5px !important;
-  margin-bottom: 4px !important;
+  font-size: 13px !important;
+  color: rgb(113, 118, 123) !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  margin-bottom: 2px !important;
   margin-top: 10px !important;
+  font-weight: 700 !important;
 }
 div.fw-teen-panel .fw-panel-original {
-  color: #888 !important;
-  font-size: 12px !important;
+  color: rgb(113, 118, 123) !important;
+  font-size: 14px !important;
   font-style: italic !important;
-  padding: 8px !important;
+  padding: 8px 12px !important;
   background: rgba(255,255,255,0.03) !important;
-  border-radius: 6px !important;
+  border-radius: 12px !important;
+  margin-top: 4px !important;
 }
 div.fw-teen-panel .fw-panel-technique {
-  font-weight: 600 !important;
-  color: #f0f0f0 !important;
+  font-weight: 700 !important;
+  color: rgb(231, 233, 234) !important;
 }
 div.fw-teen-panel .fw-panel-explanation {
-  color: #ccc !important;
-  font-size: 12px !important;
+  color: rgb(139, 152, 165) !important;
+  font-size: 14px !important;
   margin-top: 4px !important;
 }
 div.fw-teen-panel .fw-panel-question {
-  color: #00bcd4 !important;
-  font-style: italic !important;
-  font-size: 12px !important;
-  padding: 8px !important;
-  background: rgba(0, 188, 212, 0.06) !important;
-  border-radius: 6px !important;
+  color: rgb(29, 155, 240) !important;
+  font-style: normal !important;
+  font-size: 14px !important;
+  padding: 8px 12px !important;
+  background: rgba(29, 155, 240, 0.08) !important;
+  border-radius: 12px !important;
+  margin-top: 4px !important;
 }
 button.fw-teen-gotit {
   display: block !important;
-  margin: 12px auto 0 !important;
-  padding: 6px 20px !important;
-  background: rgba(0, 188, 212, 0.15) !important;
-  border: 1px solid rgba(0, 188, 212, 0.3) !important;
-  border-radius: 8px !important;
-  color: #00bcd4 !important;
-  font-size: 12px !important;
-  font-weight: 500 !important;
+  margin: 10px auto 0 !important;
+  padding: 6px 18px !important;
+  background: transparent !important;
+  border: 1px solid rgb(47, 51, 54) !important;
+  border-radius: 9999px !important;
+  color: rgb(231, 233, 234) !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
   cursor: pointer !important;
-  font-family: system-ui, sans-serif !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  transition: background 0.15s ease !important;
+}
+button.fw-teen-gotit:hover {
+  background: rgba(231, 233, 234, 0.1) !important;
 }
 
-/* Adult mode dot */
+/* Adult mode dot — positioned to avoid Twitter's 3-dot menu (top-right) */
 span.fw-adult-dot {
   position: absolute !important;
-  top: 8px !important;
-  right: 8px !important;
-  width: 8px !important;
-  height: 8px !important;
+  bottom: 8px !important;
+  right: 12px !important;
+  width: 6px !important;
+  height: 6px !important;
   border-radius: 50% !important;
   background: #ffab40 !important;
   cursor: pointer !important;
-  z-index: 9999 !important;
+  z-index: 2 !important;
   pointer-events: all !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.8) !important;
+  transition: transform 0.15s ease !important;
+}
+span.fw-adult-dot:hover {
+  transform: scale(1.6) !important;
 }
 span.fw-adult-dot.fw-seen {
   background: #00bcd4 !important;
@@ -213,75 +294,92 @@ span.fw-adult-dot.fw-seen {
 /* Adult dot tooltip */
 div.fw-dot-tooltip {
   position: absolute !important;
-  top: 20px !important;
+  bottom: 14px !important;
   right: 0 !important;
-  background: #141414 !important;
-  border: 1px solid #1e1e1e !important;
-  border-radius: 6px !important;
-  padding: 6px 10px !important;
-  font-size: 11px !important;
-  color: #f0f0f0 !important;
+  background: rgb(22, 24, 28) !important;
+  border: 1px solid rgb(47, 51, 54) !important;
+  border-radius: 8px !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  color: rgb(231, 233, 234) !important;
   white-space: nowrap !important;
-  z-index: 10000 !important;
+  z-index: 3 !important;
   pointer-events: none !important;
-  font-family: system-ui, sans-serif !important;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.5) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
 }
 
 /* Adult analysis panel */
 div.fw-adult-panel {
-  background: #141414 !important;
-  border: 1px solid #1e1e1e !important;
-  border-radius: 12px !important;
-  padding: 16px !important;
+  background: rgb(22, 24, 28) !important;
+  border: 1px solid rgb(47, 51, 54) !important;
+  border-radius: 16px !important;
+  padding: 12px 16px !important;
   margin-top: 8px !important;
-  font-family: system-ui, sans-serif !important;
-  font-size: 13px !important;
-  color: #f0f0f0 !important;
-  line-height: 1.5 !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  font-size: 15px !important;
+  color: rgb(231, 233, 234) !important;
+  line-height: 1.4 !important;
 }
 div.fw-adult-panel .fw-panel-header {
-  font-size: 13px !important;
-  font-weight: 600 !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
   color: #ffab40 !important;
-  margin-bottom: 12px !important;
+  margin-bottom: 8px !important;
 }
 div.fw-adult-panel .fw-panel-label {
-  font-size: 10px !important;
-  color: #888 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.5px !important;
-  margin-bottom: 4px !important;
+  font-size: 13px !important;
+  color: rgb(113, 118, 123) !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  margin-bottom: 2px !important;
   margin-top: 10px !important;
+  font-weight: 700 !important;
 }
 div.fw-adult-panel .fw-panel-detail {
-  color: #ccc !important;
-  font-size: 12px !important;
+  color: rgb(139, 152, 165) !important;
+  font-size: 14px !important;
 }
 div.fw-adult-panel .fw-panel-actions {
   display: flex !important;
   gap: 8px !important;
-  margin-top: 14px !important;
+  margin-top: 12px !important;
 }
 button.fw-adult-btn {
   flex: 1 !important;
-  padding: 7px 12px !important;
-  border-radius: 8px !important;
-  font-size: 12px !important;
-  font-weight: 500 !important;
+  padding: 8px 16px !important;
+  border-radius: 9999px !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
   cursor: pointer !important;
-  font-family: system-ui, sans-serif !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
   border: none !important;
+  transition: background 0.15s ease !important;
 }
 button.fw-adult-btn-primary {
-  background: rgba(0, 188, 212, 0.15) !important;
-  color: #00bcd4 !important;
-  border: 1px solid rgba(0, 188, 212, 0.3) !important;
+  background: rgba(29, 155, 240, 0.15) !important;
+  color: rgb(29, 155, 240) !important;
+  border: 1px solid rgba(29, 155, 240, 0.3) !important;
+}
+button.fw-adult-btn-primary:hover {
+  background: rgba(29, 155, 240, 0.25) !important;
 }
 button.fw-adult-btn-secondary {
-  background: rgba(255,255,255,0.05) !important;
-  color: #888 !important;
-  border: 1px solid #1e1e1e !important;
+  background: transparent !important;
+  color: rgb(113, 118, 123) !important;
+  border: 1px solid rgb(47, 51, 54) !important;
+}
+button.fw-adult-btn-secondary:hover {
+  background: rgba(231, 233, 234, 0.1) !important;
+}
+
+/* Fade-in for visible injection */
+@keyframes fw-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fw-animate-in {
+  animation: fw-fade-in 0.2s ease-out !important;
 }
 `;
   document.head.appendChild(style);
@@ -312,15 +410,17 @@ export function injectIntoElement(
       el.setAttribute('data-fw-original', el.innerHTML);
     }
 
+    const visible = isInViewport(el);
+
     switch (mode) {
       case 'child':
         injectChild(el, neutralized);
         break;
       case 'teen':
-        injectTeen(el, neutralized);
+        injectTeen(el, neutralized, visible);
         break;
       case 'adult':
-        injectAdult(el, neutralized);
+        injectAdult(el, neutralized, visible);
         break;
     }
   } catch {
@@ -350,9 +450,9 @@ function injectChild(el: HTMLElement, neutralized: NeutralizedContent): void {
 }
 
 // ─── TEEN MODE ───
-// Protected + learning. Neutralized by default with pill indicator.
+// Protected + learning. Neutralized by default with compact pill indicator.
 
-function injectTeen(el: HTMLElement, neutralized: NeutralizedContent): void {
+function injectTeen(el: HTMLElement, neutralized: NeutralizedContent, visible: boolean): void {
   // Replace text
   replaceText(el, neutralized.rewrittenText);
   el.setAttribute('data-fw-neutralized', 'true');
@@ -364,10 +464,18 @@ function injectTeen(el: HTMLElement, neutralized: NeutralizedContent): void {
   const technique = getPrimaryTechnique(neutralized);
   const techniqueName = TECHNIQUE_NAMES[technique];
 
-  // Create pill
-  const pill = document.createElement('div');
+  // Create compact inline pill — just "✦ reframed", technique on hover
+  const pill = document.createElement('span');
   pill.className = 'fw-teen-pill';
-  pill.textContent = `\u2726 reframed \u00b7 ${techniqueName}`;
+  if (visible) pill.classList.add('fw-animate-in');
+
+  const label = document.createTextNode('\u2726 reframed');
+  const techSpan = document.createElement('span');
+  techSpan.className = 'fw-pill-technique';
+  techSpan.textContent = ` \u00b7 ${techniqueName}`;
+
+  pill.appendChild(label);
+  pill.appendChild(techSpan);
 
   pill.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -383,15 +491,16 @@ function injectTeen(el: HTMLElement, neutralized: NeutralizedContent): void {
 
     const panel = document.createElement('div');
     panel.className = 'fw-teen-panel';
+    if (visible) panel.classList.add('fw-animate-in');
     panel.innerHTML = `
       <div class="fw-panel-header">\u2726 FeelingWise spotted something</div>
-      <div class="fw-panel-label">ORIGINAL</div>
+      <div class="fw-panel-label">Original</div>
       <div class="fw-panel-original">${escapeHtml(originalText)}</div>
-      <div class="fw-panel-label">TECHNIQUE: ${escapeHtml(techniqueName)}</div>
+      <div class="fw-panel-label">${escapeHtml(techniqueName)}</div>
       <div class="fw-panel-explanation">${escapeHtml(TECHNIQUE_EXPLANATIONS[technique])}</div>
-      <div class="fw-panel-label">THINK ABOUT IT</div>
+      <div class="fw-panel-label">Think about it</div>
       <div class="fw-panel-question">${escapeHtml(TECHNIQUE_QUESTIONS[technique])}</div>
-      <button class="fw-teen-gotit">Got it \u2713</button>
+      <button class="fw-teen-gotit">Got it</button>
     `;
 
     panel.querySelector('.fw-teen-gotit')?.addEventListener('click', (ev) => {
@@ -409,7 +518,7 @@ function injectTeen(el: HTMLElement, neutralized: NeutralizedContent): void {
 // ─── ADULT MODE ───
 // Transparency first. Original stays. Amber dot indicator.
 
-function injectAdult(el: HTMLElement, neutralized: NeutralizedContent): void {
+function injectAdult(el: HTMLElement, neutralized: NeutralizedContent, visible: boolean): void {
   // Do NOT replace text — original stays in DOM
   el.setAttribute('data-fw-neutral', neutralized.rewrittenText);
   el.setAttribute('data-fw-flagged', 'true');
@@ -422,7 +531,9 @@ function injectAdult(el: HTMLElement, neutralized: NeutralizedContent): void {
   if (article.querySelector('.fw-adult-dot')) return;
 
   // Ensure article is positioned for absolute child
-  article.style.position = 'relative';
+  if (getComputedStyle(article).position === 'static') {
+    article.style.position = 'relative';
+  }
 
   const technique = getPrimaryTechnique(neutralized);
   const techniqueName = TECHNIQUE_NAMES[technique];
@@ -431,9 +542,10 @@ function injectAdult(el: HTMLElement, neutralized: NeutralizedContent): void {
     .reduce((max, t) => Math.max(max, t.severity), 0);
   const confidence = Math.round(neutralized.analysis.overallConfidence * 100);
 
-  // Create amber dot
+  // Create amber dot — positioned bottom-right to avoid Twitter's 3-dot menu
   const dot = document.createElement('span');
   dot.className = 'fw-adult-dot';
+  if (visible) dot.classList.add('fw-animate-in');
 
   // Hover tooltip
   let tooltip: HTMLDivElement | null = null;
@@ -441,7 +553,7 @@ function injectAdult(el: HTMLElement, neutralized: NeutralizedContent): void {
     if (tooltip) return;
     tooltip = document.createElement('div');
     tooltip.className = 'fw-dot-tooltip';
-    tooltip.textContent = '\u26a0 Manipulation detected \u00b7 click to analyze';
+    tooltip.textContent = 'Click to analyze';
     dot.appendChild(tooltip);
   });
   dot.addEventListener('mouseleave', () => {
@@ -465,15 +577,15 @@ function injectAdult(el: HTMLElement, neutralized: NeutralizedContent): void {
     const originalText = el.getAttribute('data-fw-original')?.replace(/<[^>]*>/g, '') ?? '';
 
     const panel = document.createElement('div');
-    panel.className = 'fw-adult-panel';
+    panel.className = 'fw-adult-panel fw-animate-in';
     panel.innerHTML = `
       <div class="fw-panel-header">\u26a0 Manipulation Analysis</div>
-      <div class="fw-panel-label">ORIGINAL TEXT</div>
+      <div class="fw-panel-label">Original text</div>
       <div class="fw-panel-detail">${escapeHtml(originalText)}</div>
-      <div class="fw-panel-label">DETECTED</div>
+      <div class="fw-panel-label">Detected</div>
       <div class="fw-panel-detail"><strong>${escapeHtml(techniqueName)}</strong> (severity ${severity}/10)</div>
       <div class="fw-panel-detail" style="margin-top:4px !important">${escapeHtml(TECHNIQUE_EXPLANATIONS[technique])}</div>
-      <div class="fw-panel-label">CONFIDENCE</div>
+      <div class="fw-panel-label">Confidence</div>
       <div class="fw-panel-detail">${confidence}%</div>
       <div class="fw-panel-actions">
         <button class="fw-adult-btn fw-adult-btn-primary fw-see-neutral">See neutralized</button>
