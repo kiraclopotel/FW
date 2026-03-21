@@ -17,6 +17,9 @@ export interface FWSettings {
   dailyCap: number;
   deepScanEnabled: boolean;
 
+  // Language
+  locale: 'en' | 'ro';
+
   // Stats
   totalChecksToday: number;
   totalNeutralizedToday: number;
@@ -28,7 +31,7 @@ export interface FWSettings {
 const SETTINGS_KEYS: (keyof FWSettings)[] = [
   'mode', 'apiProvider',
   'anthropicApiKey', 'openaiApiKey', 'deepSeekApiKey', 'geminiApiKey',
-  'managedCredits', 'dailyCap', 'deepScanEnabled',
+  'managedCredits', 'dailyCap', 'deepScanEnabled', 'locale',
   'totalChecksToday', 'totalNeutralizedToday', 'totalTokensToday', 'estimatedCostToday', 'lastResetDate',
 ];
 
@@ -42,6 +45,7 @@ const DEFAULTS: FWSettings = {
   managedCredits: 0,
   dailyCap: 200,
   deepScanEnabled: false,
+  locale: 'en',
   totalChecksToday: 0,
   totalNeutralizedToday: 0,
   totalTokensToday: 0,

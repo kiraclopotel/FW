@@ -1,6 +1,7 @@
 import { StrictMode, useState, useEffect, CSSProperties } from 'react';
 import { createRoot } from 'react-dom/client';
 import { FWSettings, getSettings, saveSettings } from '../../storage/settings';
+import { t, setLocale, Locale } from '../../i18n';
 
 // ─── Color palette ───
 const C = {
@@ -84,6 +85,7 @@ function Popup() {
 
   useEffect(() => {
     getSettings().then(s => {
+      setLocale(s.locale as Locale);
       setSettings(s);
       setScreen(hasApiKey(s) ? 'main' : 'setup');
     });
@@ -148,7 +150,7 @@ function SetupScreen({ settings, update, onDone }: {
 
   const handleSave = async () => {
     if (!key.trim()) {
-      setError('Please enter an API key');
+      setError(t('enterApiKey'));
       return;
     }
     const keyField = keyForProvider(provider);
@@ -172,10 +174,9 @@ function SetupScreen({ settings, update, onDone }: {
         padding: 12,
         marginBottom: 16,
       }}>
-        <div style={{ fontWeight: 500, marginBottom: 4 }}>Connect your AI</div>
+        <div style={{ fontWeight: 500, marginBottom: 4 }}>{t('connectAI')}</div>
         <div style={{ fontSize: 12, color: C.muted, lineHeight: '1.5' }}>
-          FeelingWise needs an AI provider to detect and rewrite manipulation.
-          Use your own API key — you control costs.
+          {t('connectAIDesc')}
         </div>
       </div>
 
@@ -252,7 +253,7 @@ function SetupScreen({ settings, update, onDone }: {
 
       {/* Link */}
       <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>
-        Get a free key → <a
+        {t('getFreeKey')} → <a
           href={meta.link}
           target="_blank"
           rel="noopener noreferrer"
@@ -276,7 +277,7 @@ function SetupScreen({ settings, update, onDone }: {
           fontFamily: font,
         }}
       >
-        Connect & Start
+        {t('connectStart')}
       </button>
     </div>
   );
@@ -314,7 +315,7 @@ function MainScreen({ settings, update, onSettings }: {
             background: isActive ? C.green : C.red,
             display: 'inline-block',
           }} />
-          <span style={{ color: C.muted }}>{isActive ? 'Active' : 'Paused'}</span>
+          <span style={{ color: C.muted }}>{isActive ? t('active') : t('paused')}</span>
         </div>
       </div>
 
@@ -323,22 +324,22 @@ function MainScreen({ settings, update, onSettings }: {
 
       {/* Today's stats */}
       <div style={{ display: 'flex', gap: 8, padding: 16 }}>
-        <StatCard value={settings.totalChecksToday} label="posts scanned" />
-        <StatCard value={settings.totalNeutralizedToday} label="neutralized" />
+        <StatCard value={settings.totalChecksToday} label={t('postsScanned')} />
+        <StatCard value={settings.totalNeutralizedToday} label={t('neutralized')} />
       </div>
 
       {/* Token usage */}
       <div style={{ padding: '0 16px 12px', fontSize: 11, color: C.muted, display: 'flex', justifyContent: 'space-between' }}>
-        <span>{settings.totalTokensToday.toLocaleString()} tokens used today</span>
+        <span>{settings.totalTokensToday.toLocaleString()} {t('tokensUsed')}</span>
         <span>~${(settings.estimatedCostToday / 100).toFixed(3)}</span>
       </div>
 
       {/* Daily cap */}
       <div style={{ padding: '0 16px 16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ fontSize: 12 }}>Daily AI limit</span>
+          <span style={{ fontSize: 12 }}>{t('dailyLimit')}</span>
           <span style={{ fontSize: 12, color: C.teal }}>
-            {settings.dailyCap === 0 ? 'Unlimited' : `${settings.dailyCap} checks/day`}
+            {settings.dailyCap === 0 ? t('unlimited') : `${settings.dailyCap} ${t('checksPerDay')}`}
           </span>
         </div>
         <input
@@ -351,7 +352,7 @@ function MainScreen({ settings, update, onSettings }: {
           style={{ width: '100%', accentColor: C.teal }}
         />
         <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-          Protects your credits on heavy scroll days
+          {t('protectsCredits')}
         </div>
       </div>
 
@@ -378,9 +379,8 @@ function MainScreen({ settings, update, onSettings }: {
               fontWeight: 500,
               color: settings.mode === m ? C.teal : C.muted,
               marginTop: 2,
-              textTransform: 'capitalize',
             }}>
-              {m}
+              {t(m)}
             </div>
           </button>
         ))}
@@ -397,7 +397,7 @@ function MainScreen({ settings, update, onSettings }: {
           cursor: 'pointer',
         }}
       >
-        \u2699 Settings
+        \u2699 {t('settings')}
       </div>
     </div>
   );
@@ -462,13 +462,13 @@ function SettingsScreen({ settings, update, onBack, onChangeKey }: {
         borderBottom: `1px solid ${C.border}`,
       }}>
         <span onClick={onBack} style={{ cursor: 'pointer', fontSize: 16 }}>\u2190</span>
-        <span style={{ fontSize: 14, fontWeight: 500 }}>Settings</span>
+        <span style={{ fontSize: 14, fontWeight: 500 }}>{t('settings')}</span>
       </div>
 
       <div style={{ padding: 16 }}>
         {/* Provider section */}
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>PROVIDER</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>{t('provider')}</div>
           <div style={{
             background: C.card,
             borderRadius: 6,
@@ -491,7 +491,7 @@ function SettingsScreen({ settings, update, onBack, onChangeKey }: {
                 fontFamily: font,
               }}
             >
-              Change API key
+              {t('changeApiKey')}
             </button>
           </div>
         </div>
@@ -504,23 +504,50 @@ function SettingsScreen({ settings, update, onBack, onChangeKey }: {
             alignItems: 'center',
             marginBottom: 4,
           }}>
-            <span style={{ fontSize: 13 }}>Deep scan for uncertain posts</span>
+            <span style={{ fontSize: 13 }}>{t('deepScan')}</span>
             <ToggleSwitch
               checked={settings.deepScanEnabled}
               onChange={v => update({ deepScanEnabled: v })}
             />
           </div>
           <div style={{ fontSize: 11, color: C.muted, lineHeight: '1.4' }}>
-            Uses slower, smarter model for ambiguous content. Uses more credits.
+            {t('deepScanDesc')}
+          </div>
+        </div>
+
+        {/* Language selector */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>{t('language')}</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {(['en', 'ro'] as Locale[]).map(loc => (
+              <button
+                key={loc}
+                onClick={() => { update({ locale: loc }); setLocale(loc); }}
+                style={{
+                  flex: 1,
+                  padding: '6px 0',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  background: settings.locale === loc ? C.teal : C.card,
+                  color: settings.locale === loc ? C.bg : C.muted,
+                  border: `1px solid ${settings.locale === loc ? C.teal : C.border}`,
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  fontFamily: font,
+                }}
+              >
+                {loc.toUpperCase()}
+              </button>
+            ))}
           </div>
         </div>
 
         {/* About */}
         <div>
-          <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>ABOUT</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>{t('about')}</div>
           <div style={{ fontSize: 12, color: C.muted, lineHeight: '1.6' }}>
             FeelingWise v0.1<br />
-            Built to make manipulation visible. Never to censor.
+            {t('aboutText')}
           </div>
         </div>
       </div>
