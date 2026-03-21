@@ -49,8 +49,12 @@ function Dashboard() {
 
   useEffect(() => {
     Promise.all([getRecords(), getStats()])
-      .then(([recs, st]) => { setRecords(recs); setStats(st); })
-      .catch(() => { /* ignore */ })
+      .then(([recs, st]) => {
+        console.log(`[FeelingWise] Dashboard: loaded ${recs.length} records`);
+        setRecords(recs);
+        setStats(st);
+      })
+      .catch(err => { console.error('[FeelingWise] Dashboard: failed to load records:', err); })
       .finally(() => setLoading(false));
   }, []);
 

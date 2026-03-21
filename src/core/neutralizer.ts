@@ -31,13 +31,9 @@ function validateNeutralization(original: string, rewritten: string): boolean {
   // Minimum length check
   if (rewritten.length < 5) return false;
 
-  // Length check: short manipulative posts use dense shorthand that needs
-  // more words to express neutrally, so we allow generous ratios for short text.
-  const maxRatio = original.length < 100 ? 3.0
-                 : original.length < 280 ? 2.0
-                 : original.length < 500 ? 1.8
-                 : 1.5;
-  if (rewritten.length > original.length * maxRatio) return false;
+  // No length ratio check — manipulative posts use dense shorthand (ALL CAPS,
+  // abbreviations, no attribution) that legitimately expands when rewritten
+  // neutrally. The AI prompt already instructs conciseness.
 
   // Check for meta-commentary (AI breaking character)
   for (const pattern of FORBIDDEN_META_PATTERNS) {

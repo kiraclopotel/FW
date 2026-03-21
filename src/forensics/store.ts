@@ -38,7 +38,11 @@ export async function addRecord(record: ForensicRecord): Promise<void> {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       tx.objectStore(STORE_NAME).add(record);
-      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.oncomplete = () => {
+        db.close();
+        console.log('[FeelingWise] Forensic: record stored successfully');
+        resolve();
+      };
       tx.onerror = () => { db.close(); reject(tx.error); };
     });
   } catch (err) {

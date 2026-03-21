@@ -56,6 +56,8 @@ export async function logForensicEvent(
       aiSource,
     };
 
+    console.log(`[FeelingWise] Forensic: logging neutralization for post ${partial.id}`);
+
     const integrityHash = await computeIntegrityHash(partial);
     const record: ForensicRecord = { ...partial, integrityHash };
 
