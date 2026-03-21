@@ -519,6 +519,11 @@ function injectTeen(el: HTMLElement, neutralized: NeutralizedContent, visible: b
     panel.querySelector('.fw-teen-gotit')?.addEventListener('click', (ev) => {
       ev.stopPropagation();
       panel.remove();
+      // Send confirmed verdict — teen clicked "Got it" = they understood the manipulation
+      chrome.runtime.sendMessage({
+        type: 'USER_VERDICT',
+        payload: { postId: neutralized.postId, verdict: 'confirmed', mode: 'teen' },
+      }).catch(() => {});
     });
 
     // Insert panel after the pill
@@ -606,7 +611,7 @@ function injectAdult(el: HTMLElement, neutralized: NeutralizedContent, visible: 
       </div>
     `;
 
-    // "See neutralized" button
+    // "See neutralized" button — adult confirms manipulation by choosing to see clean version
     panel.querySelector('.fw-see-neutral')?.addEventListener('click', (ev) => {
       ev.stopPropagation();
       replaceText(el, neutralized.rewrittenText);
@@ -614,12 +619,20 @@ function injectAdult(el: HTMLElement, neutralized: NeutralizedContent, visible: 
       dot.classList.add('fw-seen');
       addGuard(el, neutralized.rewrittenText);
       panel.remove();
+      chrome.runtime.sendMessage({
+        type: 'USER_VERDICT',
+        payload: { postId: neutralized.postId, verdict: 'confirmed', mode: 'adult' },
+      }).catch(() => {});
     });
 
-    // "Dismiss" button
+    // "Dismiss" button — adult disputes the detection
     panel.querySelector('.fw-dismiss')?.addEventListener('click', (ev) => {
       ev.stopPropagation();
       panel.remove();
+      chrome.runtime.sendMessage({
+        type: 'USER_VERDICT',
+        payload: { postId: neutralized.postId, verdict: 'disputed', mode: 'adult' },
+      }).catch(() => {});
     });
 
     // Insert panel after the tweet text element

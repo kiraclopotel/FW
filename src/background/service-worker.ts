@@ -5,27 +5,16 @@
 
 import { incrementNeutralized } from '../storage/settings';
 import { logForensicEvent } from '../forensics/logger';
-import { AnalysisResult } from '../types/analysis';
-import { Platform } from '../types/post';
-import { Mode } from '../types/mode';
+import { addVerdict } from '../forensics/feedback-store';
+import { updateAuthorProfile } from '../forensics/author-store';
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[FeelingWise] Extension installed');
 });
 
-interface ForensicLogPayload {
-  originalText: string;
-  neutralizedText: string;
-  analysis: AnalysisResult;
-  mode: Mode;
-  platform: Platform;
-  aiSource: 'local' | 'cloud';
-  author?: string;
-  postUrl?: string;
-}
-
 // Handle messages from content scripts and popup
-chrome.runtime.onMessage.addListener((message: { type: string; payload?: ForensicLogPayload }, _sender, _sendResponse) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+chrome.runtime.onMessage.addListener((message: { type: string; payload?: any }, _sender, _sendResponse) => {
   if (message.type === 'NEUTRALIZATION_COMPLETE') {
     incrementNeutralized();
   }
@@ -43,6 +32,22 @@ chrome.runtime.onMessage.addListener((message: { type: string; payload?: Forensi
       p.author,
       p.postUrl,
     ).catch(err => { console.error('[FeelingWise] Service worker forensic log failed:', err); });
+  }
+
+  if (message.type === 'USER_VERDICT' && message.payload) {
+    const p = message.payload;
+    addVerdict({
+      postId: p.postId,
+      verdict: p.verdict,
+      mode: p.mode,
+      timestamp: new Date().toISOString(),
+    }).catch(err => { console.error('[FeelingWise] Verdict storage failed:', err); });
+  }
+
+  if (message.type === 'AUTHOR_UPDATE' && message.payload) {
+    const p = message.payload;
+    updateAuthorProfile(p.author, p.platform, p.flagged, p.techniques)
+      .catch(err => { console.error('[FeelingWise] Author profile update failed:', err); });
   }
 
   if (message.type === 'OPEN_SIDE_PANEL') {
