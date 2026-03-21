@@ -9,7 +9,7 @@ import { NeutralizedContent } from '../types/neutralization';
 import { detect } from './detector';
 import { verifyWithContext } from './context-analyzer';
 import { neutralize } from './neutralizer';
-import { getSettings, incrementNeutralized } from '../storage/settings';
+import { getSettings } from '../storage/settings';
 
 export interface PipelineResult {
   action: 'pass' | 'neutralize' | 'flag';
@@ -92,9 +92,6 @@ export async function process(post: PostContent): Promise<PipelineResult> {
       console.log(`[FeelingWise] Pipeline: PASS (neutralization failed/invalid)`);
       return PASS;
     }
-
-    // Track successful neutralization
-    await incrementNeutralized();
 
     const totalMs = performance.now() - startTime;
 
