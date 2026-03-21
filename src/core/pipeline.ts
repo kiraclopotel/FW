@@ -1,5 +1,5 @@
 // FeelingWise - Processing Pipeline Orchestrator
-// Three-layer detection cascade: Pattern Scan -> AI Verification -> Deep Scan (optional)
+// Single-call detection + neutralization for minimal latency.
 //
 // CARDINAL RULE: When in doubt, PASS. Ambiguous = non-intervention.
 
@@ -7,10 +7,8 @@ import { PostContent } from '../types/post';
 import { TechniqueResult } from '../types/analysis';
 import { NeutralizedContent } from '../types/neutralization';
 import { detect } from './detector';
-import { verifyWithContext } from './context-analyzer';
-import { neutralize } from './neutralizer';
+import { combinedDetectAndNeutralize } from './neutralizer';
 import { getSettings } from '../storage/settings';
-import { scoreSuspicion, shouldSample } from './suspicion';
 
 export interface PipelineResult {
   action: 'pass' | 'neutralize' | 'flag';
@@ -18,6 +16,9 @@ export interface PipelineResult {
 }
 
 const PASS: PipelineResult = { action: 'pass' };
+
+// Minimum text length to warrant AI analysis
+const MIN_TEXT_LENGTH = 30;
 
 // Romanian detection heuristic
 const ROMANIAN_DIACRITICS = /[ăâîșțĂÂÎȘȚ]/;
@@ -27,11 +28,29 @@ function isRomanian(text: string): boolean {
   return ROMANIAN_DIACRITICS.test(text) || ROMANIAN_WORDS.test(text);
 }
 
+// Check if text has actual prose content (not just links, handles, emojis)
+function isSubstantiveText(text: string): boolean {
+  // Strip URLs, @mentions, hashtags
+  const stripped = text
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/@\w+/g, '')
+    .replace(/#\w+/g, '')
+    .trim();
+  // Must have enough actual words remaining
+  const words = stripped.split(/\s+/).filter(w => w.replace(/[^\w]/g, '').length > 1);
+  return words.length >= 4 && stripped.length >= MIN_TEXT_LENGTH;
+}
+
 export async function process(post: PostContent): Promise<PipelineResult> {
   try {
     const startTime = performance.now();
 
-    // Step 1: Layer 1 — regex-based detection
+    // Quick reject: too short or no real content
+    if (post.text.length < MIN_TEXT_LENGTH || !isSubstantiveText(post.text)) {
+      return PASS;
+    }
+
+    // Step 1: Layer 1 — regex-based detection (fast, <5ms)
     const techniques: TechniqueResult[] = detect(post.text, post.author, post.platform);
     const detected = techniques.filter(t => t.present);
     const romanian = isRomanian(post.text);
@@ -42,51 +61,58 @@ export async function process(post: PostContent): Promise<PipelineResult> {
       romanian,
     });
 
-    // If zero triggers: check if Romanian (always send to AI) or use suspicion sampling
-    let wasSampled = false;
-    if (detected.length === 0) {
-      if (romanian) {
-        console.log(`[FeelingWise] Pipeline: ROMANIAN DETECTED — sending to L2 for full analysis`);
-        wasSampled = true;
-        // Fall through to Layer 2
-      } else {
-        const settings = await getSettings();
-        const suspicion = scoreSuspicion(post.text);
-        if (!shouldSample(suspicion.total, settings.totalChecksToday, settings.dailyCap)) {
-          console.log(`[FeelingWise] Pipeline: PASS (no triggers, suspicion ${suspicion.total.toFixed(2)}, not sampled)`);
-          return PASS;
-        }
-        console.log(`[FeelingWise] Pipeline: SAMPLED (suspicion ${suspicion.total.toFixed(2)})`);
-        wasSampled = true;
-        // Fall through to Layer 2
-      }
+    // Step 2: Check budget before calling AI
+    const settings = await getSettings();
+    if (settings.dailyCap > 0 && settings.totalChecksToday >= settings.dailyCap) {
+      console.log(`[FeelingWise] Pipeline: PASS (daily cap reached)`);
+      return PASS;
     }
 
-    // Step 2: Layer 2 — AI verification via callAI()
-    const settings = await getSettings();
-    const fastMode = !settings.deepScanEnabled;
-    const analysis = await verifyWithContext(post.text, techniques, romanian, fastMode, wasSampled);
+    // Step 3: Decide whether to send to AI
+    // Send to AI if: L1 triggered, OR Romanian, OR substantive text (all prose posts get analyzed)
+    // The old suspicion sampling was too restrictive — every substantive post should be checked
+    const hasL1Triggers = detected.length > 0;
+
+    if (!hasL1Triggers && !romanian && !isSubstantiveText(post.text)) {
+      console.log(`[FeelingWise] Pipeline: PASS (no triggers, not substantive)`);
+      return PASS;
+    }
+
+    // Step 4: SINGLE AI CALL — detect + neutralize combined
+    // This eliminates the second API round-trip, cutting latency ~50%
+    const result = await combinedDetectAndNeutralize(post.text, techniques, romanian);
+
+    if (!result) {
+      console.log(`[FeelingWise] Pipeline: PASS (AI call failed)`);
+      return PASS;
+    }
+
+    const { analysis, neutralized } = result;
     analysis.postId = post.id;
 
-    console.log(`[FeelingWise] Pipeline L2:`, {
+    console.log(`[FeelingWise] Pipeline AI result:`, {
       postId: post.id,
       overallConfidence: analysis.overallConfidence,
       isManipulative: analysis.isManipulative,
       confirmedTechniques: analysis.techniques.filter(t => t.present).map(t => t.technique),
+      hasNeutralization: !!neutralized,
     });
 
-    // If Layer 2 says not manipulative → PASS
+    // If AI says not manipulative → PASS
     if (!analysis.isManipulative) {
-      console.log(`[FeelingWise] Pipeline: PASS (L2 not manipulative)`);
+      console.log(`[FeelingWise] Pipeline: PASS (AI: not manipulative)`);
       return PASS;
     }
 
-    // Step 3: Apply mode-aware confidence thresholds
-    // Child/teen: threshold for NEUTRALIZATION (replacing content)
-    // Adult: threshold for FLAGGING (showing amber dot — original stays)
-    const threshold = settings.mode === 'child' ? 0.65
-                    : settings.mode === 'teen' ? 0.60
-                    : 0.55; // adult: just flagging, low cost of false positive
+    // Step 5: Apply mode-aware confidence thresholds
+    // LOWERED thresholds: borderline cases are teaching moments, especially for teens
+    // Teen mode: 0.40 — the whole point is education. A teen seeing analysis of
+    //   a borderline post ("was that really manipulative?") IS the learning experience.
+    // Child mode: 0.45 — slightly higher bar since rewrites happen silently
+    // Adult mode: 0.35 — just flagging, very low cost of false positive
+    const threshold = settings.mode === 'child' ? 0.45
+                    : settings.mode === 'teen' ? 0.40
+                    : 0.35; // adult: just flagging
 
     if (analysis.overallConfidence < threshold) {
       console.log(`[FeelingWise] Pipeline: PASS (confidence ${analysis.overallConfidence.toFixed(2)} < threshold ${threshold})`);
@@ -102,13 +128,15 @@ export async function process(post: PostContent): Promise<PipelineResult> {
       }
     }
 
-    // Step 4: Neutralize
-    const neutralized = await neutralize(post.text, analysis);
-
+    // If we have a neutralized version, use it
     if (!neutralized) {
-      console.log(`[FeelingWise] Pipeline: PASS (neutralization failed/invalid)`);
+      console.log(`[FeelingWise] Pipeline: PASS (no valid neutralization produced)`);
       return PASS;
     }
+
+    // Set the postId on the neutralized content
+    neutralized.postId = post.id;
+    neutralized.analysis = analysis;
 
     const totalMs = performance.now() - startTime;
 
