@@ -314,8 +314,18 @@ function MainScreen({ settings, update, onSettings }: {
             borderRadius: '50%',
             background: isActive ? C.green : C.red,
             display: 'inline-block',
+            animation: !isActive ? 'fw-pulse 1.5s ease-in-out infinite' : undefined,
           }} />
-          <span style={{ color: C.muted }}>{isActive ? t('active') : t('paused')}</span>
+          {isActive ? (
+            <span style={{ color: C.muted }}>{t('active')}</span>
+          ) : (
+            <span
+              onClick={onSettings}
+              style={{ color: C.amber, cursor: 'pointer', fontSize: 11 }}
+            >
+              API key missing — click to reconnect
+            </span>
+          )}
         </div>
       </div>
 
@@ -621,6 +631,11 @@ function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: b
     </div>
   );
 }
+
+// ─── Pulse animation ───
+const style = document.createElement('style');
+style.textContent = `@keyframes fw-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`;
+document.head.appendChild(style);
 
 // ─── Mount ───
 createRoot(document.getElementById('root')!).render(

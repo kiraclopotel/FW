@@ -71,13 +71,17 @@ export async function getSettings(): Promise<FWSettings> {
       settings.totalTokensToday = 0;
       settings.estimatedCostToday = 0;
       settings.lastResetDate = today;
-      await chrome.storage.local.set({
-        totalChecksToday: 0,
-        totalNeutralizedToday: 0,
-        totalTokensToday: 0,
-        estimatedCostToday: 0,
-        lastResetDate: today,
-      });
+      try {
+        await chrome.storage.local.set({
+          totalChecksToday: 0,
+          totalNeutralizedToday: 0,
+          totalTokensToday: 0,
+          estimatedCostToday: 0,
+          lastResetDate: today,
+        });
+      } catch {
+        // Daily reset write failed — continue with in-memory reset values
+      }
     }
 
     return settings;
@@ -124,6 +128,24 @@ export async function trackTokenUsage(inputTokens: number, outputTokens: number,
     totalTokensToday: settings.totalTokensToday + totalNew,
     estimatedCostToday: Math.round((settings.estimatedCostToday + costCents) * 100) / 100,
   });
+}
+
+export async function validateApiKey(): Promise<{ valid: boolean; provider: string }> {
+  try {
+    const settings = await getSettings();
+    const provider = settings.apiProvider;
+    let valid = false;
+    switch (provider) {
+      case 'anthropic': valid = !!settings.anthropicApiKey; break;
+      case 'openai': valid = !!settings.openaiApiKey; break;
+      case 'deepseek': valid = !!settings.deepSeekApiKey; break;
+      case 'gemini': valid = !!settings.geminiApiKey; break;
+      case 'managed': valid = settings.managedCredits > 0; break;
+    }
+    return { valid, provider };
+  } catch {
+    return { valid: false, provider: 'unknown' };
+  }
 }
 
 export async function consumeCredits(amount: number): Promise<boolean> {

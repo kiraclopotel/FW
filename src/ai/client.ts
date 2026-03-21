@@ -3,6 +3,8 @@
 
 import { getSettings, incrementChecks, consumeCredits, trackTokenUsage } from '../storage/settings';
 
+let notifiedConnected = false;
+
 export async function callAI(system: string, user: string, fastMode = true): Promise<string> {
   const settings = await getSettings();
 
@@ -22,6 +24,7 @@ export async function callAI(system: string, user: string, fastMode = true): Pro
 
   if (!hasKey) {
     console.log('[FeelingWise] No API configured — PASS');
+    chrome.runtime.sendMessage({ type: 'FW_API_DISCONNECTED' }).catch(() => {});
     return '';
   }
 
@@ -43,8 +46,16 @@ export async function callAI(system: string, user: string, fastMode = true): Pro
   }
 }
 
+function notifyConnected(): void {
+  if (!notifiedConnected) {
+    notifiedConnected = true;
+    chrome.runtime.sendMessage({ type: 'FW_API_CONNECTED' }).catch(() => {});
+  }
+}
+
 async function callAnthropic(system: string, user: string, apiKey: string, fast: boolean): Promise<string> {
   if (!apiKey) return '';
+  notifyConnected();
   const model = fast ? 'claude-haiku-4-5-20251001' : 'claude-sonnet-4-6';
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -77,6 +88,7 @@ async function callAnthropic(system: string, user: string, apiKey: string, fast:
 
 async function callOpenAI(system: string, user: string, apiKey: string, fast: boolean): Promise<string> {
   if (!apiKey) return '';
+  notifyConnected();
   const model = fast ? 'gpt-4o-mini' : 'gpt-4o';
   try {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -110,6 +122,7 @@ async function callOpenAI(system: string, user: string, apiKey: string, fast: bo
 
 async function callDeepSeek(system: string, user: string, apiKey: string, fast: boolean): Promise<string> {
   if (!apiKey) return '';
+  notifyConnected();
   const model = fast ? 'deepseek-chat' : 'deepseek-reasoner';
   try {
     const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
@@ -144,6 +157,7 @@ async function callDeepSeek(system: string, user: string, apiKey: string, fast: 
 
 async function callGemini(system: string, user: string, apiKey: string, fast: boolean): Promise<string> {
   if (!apiKey) return '';
+  notifyConnected();
   const model = fast ? 'gemini-2.0-flash' : 'gemini-2.0-flash-thinking-exp';
   try {
     const res = await fetch(
