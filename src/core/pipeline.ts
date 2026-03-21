@@ -10,6 +10,7 @@ import { detect } from './detector';
 import { verifyWithContext } from './context-analyzer';
 import { neutralize } from './neutralizer';
 import { getSettings } from '../storage/settings';
+import { scoreSuspicion, shouldSample } from './suspicion';
 
 export interface PipelineResult {
   action: 'pass' | 'neutralize' | 'flag';
@@ -41,10 +42,19 @@ export async function process(post: PostContent): Promise<PipelineResult> {
       romanian,
     });
 
-    // If zero triggers and not Romanian → PASS
+    // If zero triggers and not Romanian → check suspicion heuristics for sampling
     if (detected.length === 0 && !romanian) {
-      console.log(`[FeelingWise] Pipeline: PASS (no triggers)`);
-      return PASS;
+      const settings = await getSettings();
+      const suspicion = scoreSuspicion(post.text);
+
+      if (!shouldSample(suspicion.total, settings.totalChecksToday, settings.dailyCap)) {
+        console.log(`[FeelingWise] Pipeline: PASS (no triggers, suspicion ${suspicion.total.toFixed(2)}, not sampled)`);
+        return PASS;
+      }
+
+      console.log(`[FeelingWise] Pipeline: SAMPLED (suspicion ${suspicion.total.toFixed(2)})`);
+      // Fall through to Layer 2 with empty technique list
+      // L2 AI will do full analysis from scratch
     }
 
     // Step 2: Layer 2 — AI verification via callAI()
