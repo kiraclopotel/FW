@@ -33,6 +33,10 @@
       "run_at": "document_idle"
     }
   ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "FeelingWise"
+  },
   "side_panel": {
     "default_path": "sidepanel.html"
   }
