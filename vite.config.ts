@@ -1,7 +1,40 @@
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { readFileSync, writeFileSync, renameSync, existsSync, rmSync } from 'fs';
+import { resolve, join } from 'path';
+
+/**
+ * Flatten HTML outputs so e.g. dist/src/ui/popup/index.html → dist/popup.html.
+ * Uses writeBundle (post-write) since Vite 8 / Rolldown doesn't support
+ * direct bundle object mutation in generateBundle.
+ */
+function flattenHtml(): Plugin {
+  return {
+    name: 'flatten-html',
+    enforce: 'post',
+    writeBundle(options) {
+      const outDir = options.dir!;
+      const nestedDir = join(outDir, 'src', 'ui');
+      if (!existsSync(nestedDir)) return;
+
+      const { readdirSync } = require('fs') as typeof import('fs');
+      for (const subDir of readdirSync(nestedDir)) {
+        const htmlPath = join(nestedDir, subDir, 'index.html');
+        if (!existsSync(htmlPath)) continue;
+
+        let html = readFileSync(htmlPath, 'utf-8');
+        // Fix asset paths: from nested location, Vite writes relative
+        // paths like "../../../assets/foo.js" — rewrite to "assets/foo.js"
+        html = html.replace(/(?:\.\.\/)+assets\//g, 'assets/');
+        const flatPath = join(outDir, `${subDir}.html`);
+        writeFileSync(flatPath, html);
+      }
+
+      // Remove the leftover nested src/ directory
+      rmSync(join(outDir, 'src'), { recursive: true, force: true });
+    },
+  };
+}
 
 /**
  * Custom plugin that copies manifest.json to dist/ with .ts paths
@@ -39,23 +72,15 @@ function chromeExtensionManifest(): Plugin {
       }
 
       // Rewrite action.default_popup path
+      // flattenHtml moves src/ui/popup/index.html → popup.html in writeBundle,
+      // so use the flattened name directly.
       if (manifest.action?.default_popup) {
-        for (const fileName of Object.keys(bundle)) {
-          if (fileName.endsWith('.html') && fileName.includes('popup')) {
-            manifest.action.default_popup = fileName;
-            break;
-          }
-        }
+        manifest.action.default_popup = 'popup.html';
       }
 
-      // Rewrite side_panel default_path (HTML pages are emitted by Vite)
+      // Rewrite side_panel default_path
       if (manifest.side_panel?.default_path) {
-        for (const fileName of Object.keys(bundle)) {
-          if (fileName.endsWith('.html') && fileName.includes('sidepanel')) {
-            manifest.side_panel.default_path = fileName;
-            break;
-          }
-        }
+        manifest.side_panel.default_path = 'sidepanel.html';
       }
 
       // Emit the manifest to the output bundle
@@ -95,7 +120,8 @@ export default defineConfig(isContentBuild ? {
   },
 } : {
   // --- Main build (ESM - service worker, HTML pages, manifest) ---
-  plugins: [react(), chromeExtensionManifest()],
+  base: '',
+  plugins: [react(), flattenHtml(), chromeExtensionManifest()],
   build: {
     outDir: 'dist',
     emptyOutDir: true,

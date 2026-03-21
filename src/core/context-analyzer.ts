@@ -27,6 +27,34 @@ function stripMarkdownFences(text: string): string {
   return text.replace(/^```(?:json)?\s*/m, '').replace(/```\s*$/m, '').trim();
 }
 
+function extractJSON(raw: string): VerificationResponse | null {
+  const cleaned = stripMarkdownFences(raw);
+
+  // Try parsing as-is first (double-quoted JSON)
+  try {
+    return JSON.parse(cleaned);
+  } catch { /* continue */ }
+
+  // Try extracting JSON object from surrounding text
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      return JSON.parse(jsonMatch[0]);
+    } catch { /* continue */ }
+  }
+
+  // Last resort: try fixing common AI JSON quirks
+  try {
+    // Replace only single quotes that are JSON structural (not inside values)
+    const fixed = cleaned
+      .replace(/(\{|\[|,)\s*'/g, '$1"')  // opening quotes after { [ ,
+      .replace(/'\s*(:|\}|\]|,)/g, '"$1'); // closing quotes before : } ] ,
+    return JSON.parse(fixed);
+  } catch {
+    return null;
+  }
+}
+
 function capConfidence(techniques: TechniqueResult[], cap: number): AnalysisResult {
   const capped = techniques.map(t => ({
     ...t,
@@ -68,10 +96,10 @@ export async function verifyWithContext(
       return capConfidence(techniques, 0.60);
     }
 
-    const cleaned = stripMarkdownFences(raw);
-    // Replace single quotes with double quotes for JSON parsing
-    const jsonStr = cleaned.replace(/'/g, '"');
-    const response: VerificationResponse = JSON.parse(jsonStr);
+    const response = extractJSON(raw);
+    if (!response) {
+      return capConfidence(techniques, 0.60);
+    }
 
     // Map verdicts onto techniques
     const verified = techniques.map(t => {

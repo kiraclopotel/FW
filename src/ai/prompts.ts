@@ -43,11 +43,11 @@ For each flagged technique, respond:
 CONFIRMED - genuinely manipulative, with severity 1-10
 DENIED - false positive, explain briefly
 UNCERTAIN - cannot determine
-OUTPUT: JSON only, no markdown.
+OUTPUT: JSON only, no markdown. Use double quotes for all keys and string values.
 {
-  'techniques': [{'name': 'string', 'verdict': 'CONFIRMED|DENIED|UNCERTAIN', 'severity': 1-10, 'reason': 'brief'}],
-  'overallManipulative': boolean,
-  'overallConfidence': 0.0-1.0
+  "techniques": [{"name": "string", "verdict": "CONFIRMED|DENIED|UNCERTAIN", "severity": 1-10, "reason": "brief"}],
+  "overallManipulative": boolean,
+  "overallConfidence": 0.0-1.0
 }`;
 
 export const LAYER2_VERIFICATION_USER_TEMPLATE = `POST: {text}
