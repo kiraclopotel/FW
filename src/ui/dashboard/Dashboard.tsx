@@ -210,6 +210,10 @@ function Dashboard() {
         <SectionHeader title="Technique Frequency" subtitle="Manipulation techniques detected, sorted by frequency" />
         <TechniqueChart byTechnique={stats?.byTechnique ?? {}} />
 
+        {/* Section 3b: Algorithm vs Choice */}
+        <SectionHeader title="Algorithm vs Choice" subtitle="Where does manipulation come from — the algorithm's recommendations or accounts your child follows?" />
+        <AlgorithmVsChoice records={records} />
+
         {/* Section 4: Time-of-Day Heatmap */}
         <SectionHeader title="Time-of-Day Heatmap" subtitle="When does your child encounter the most manipulation? Hour-by-hour intensity." />
         <TimeOfDayHeatmap records={records} />
@@ -411,6 +415,90 @@ function TechniqueChart({ byTechnique }: { byTechnique: Record<string, number> }
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// Section 3b: Algorithm vs Choice
+// ═══════════════════════════════════════
+
+function AlgorithmVsChoice({ records }: { records: ForensicRecord[] }) {
+  const forYou = records.filter(r => r.feedSource === 'for-you').length;
+  const following = records.filter(r => r.feedSource === 'following').length;
+  const other = records.length - forYou - following;
+  const total = forYou + following;
+
+  if (total === 0) {
+    return <EmptyCard message="No feed source data yet — browse Twitter/X to collect data" />;
+  }
+
+  const forYouPct = Math.round((forYou / total) * 100);
+  const followingPct = 100 - forYouPct;
+
+  return (
+    <div style={{
+      background: C.card,
+      border: `1px solid ${C.border}`,
+      borderRadius: 8,
+      padding: 24,
+      marginBottom: 8,
+    }}>
+      {/* Bar chart */}
+      <div style={{ display: 'flex', height: 32, borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
+        {forYouPct > 0 && (
+          <div style={{ width: `${forYouPct}%`, background: C.red, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#fff' }}>{forYouPct}%</span>
+          </div>
+        )}
+        {followingPct > 0 && (
+          <div style={{ width: `${followingPct}%`, background: C.green, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#fff' }}>{followingPct}%</span>
+          </div>
+        )}
+      </div>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 12, height: 12, borderRadius: 3, background: C.red, display: 'inline-block' }} />
+          <span style={{ fontSize: 13 }}>For You (algorithm)</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.red }}>{forYou}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 12, height: 12, borderRadius: 3, background: C.green, display: 'inline-block' }} />
+          <span style={{ fontSize: 13 }}>Following (choice)</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.green }}>{following}</span>
+        </div>
+      </div>
+
+      {/* Insight text */}
+      <div style={{
+        padding: 14,
+        borderRadius: 6,
+        background: forYouPct > 50 ? C.red + '15' : C.green + '15',
+        border: `1px solid ${forYouPct > 50 ? C.red : C.green}33`,
+        fontSize: 13,
+        lineHeight: '1.6',
+      }}>
+        {forYouPct > 50 ? (
+          <span style={{ color: C.red }}>
+            {forYouPct}% of detected manipulation came from algorithmic recommendations (For You feed).
+            The algorithm is actively serving manipulative content — this is not content the user chose to see.
+          </span>
+        ) : (
+          <span style={{ color: C.green }}>
+            {followingPct}% of detected manipulation came from accounts being followed.
+            Most manipulation comes from accounts the user chose to follow, not algorithmic recommendations.
+          </span>
+        )}
+      </div>
+
+      {other > 0 && (
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 10 }}>
+          {other} post{other !== 1 ? 's' : ''} from other sources (profile, search, unknown) not included in this breakdown.
+        </div>
+      )}
     </div>
   );
 }

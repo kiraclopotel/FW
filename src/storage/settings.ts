@@ -20,12 +20,18 @@ export interface FWSettings {
   // Language
   locale: 'en' | 'ro';
 
-  // Stats
+  // Stats — daily (reset each day)
   totalChecksToday: number;
   totalNeutralizedToday: number;
   totalTokensToday: number;         // cumulative input + output tokens
   estimatedCostToday: number;       // estimated cost in USD cents
   lastResetDate: string;
+
+  // Stats — all-time (never reset)
+  totalTokensAllTime: number;
+  totalChecksAllTime: number;
+  totalNeutralizedAllTime: number;
+  estimatedCostAllTime: number;     // in USD cents, never resets
 }
 
 const SETTINGS_KEYS: (keyof FWSettings)[] = [
@@ -33,6 +39,7 @@ const SETTINGS_KEYS: (keyof FWSettings)[] = [
   'anthropicApiKey', 'openaiApiKey', 'deepSeekApiKey', 'geminiApiKey',
   'managedCredits', 'dailyCap', 'deepScanEnabled', 'locale',
   'totalChecksToday', 'totalNeutralizedToday', 'totalTokensToday', 'estimatedCostToday', 'lastResetDate',
+  'totalTokensAllTime', 'totalChecksAllTime', 'totalNeutralizedAllTime', 'estimatedCostAllTime',
 ];
 
 const DEFAULTS: FWSettings = {
@@ -51,6 +58,10 @@ const DEFAULTS: FWSettings = {
   totalTokensToday: 0,
   estimatedCostToday: 0,
   lastResetDate: new Date().toDateString(),
+  totalTokensAllTime: 0,
+  totalChecksAllTime: 0,
+  totalNeutralizedAllTime: 0,
+  estimatedCostAllTime: 0,
 };
 
 export async function getSettings(): Promise<FWSettings> {
@@ -98,6 +109,7 @@ export async function incrementChecks(): Promise<void> {
   const settings = await getSettings();
   await chrome.storage.local.set({
     totalChecksToday: settings.totalChecksToday + 1,
+    totalChecksAllTime: settings.totalChecksAllTime + 1,
   });
 }
 
@@ -105,6 +117,7 @@ export async function incrementNeutralized(): Promise<void> {
   const settings = await getSettings();
   await chrome.storage.local.set({
     totalNeutralizedToday: settings.totalNeutralizedToday + 1,
+    totalNeutralizedAllTime: settings.totalNeutralizedAllTime + 1,
   });
 }
 
@@ -127,6 +140,18 @@ export async function trackTokenUsage(inputTokens: number, outputTokens: number,
   await chrome.storage.local.set({
     totalTokensToday: settings.totalTokensToday + totalNew,
     estimatedCostToday: Math.round((settings.estimatedCostToday + costCents) * 100) / 100,
+    totalTokensAllTime: settings.totalTokensAllTime + totalNew,
+    estimatedCostAllTime: Math.round((settings.estimatedCostAllTime + costCents) * 100) / 100,
+  });
+}
+
+export async function resetDailyStats(): Promise<void> {
+  await chrome.storage.local.set({
+    totalChecksToday: 0,
+    totalNeutralizedToday: 0,
+    totalTokensToday: 0,
+    estimatedCostToday: 0,
+    lastResetDate: new Date().toDateString(),
   });
 }
 
