@@ -12,6 +12,7 @@ import {
 } from '../ai/prompts';
 import { callAI } from '../ai/client';
 import { sha256 } from '../forensics/hasher';
+import { aggregateSeverity } from './severity';
 
 // Relaxed forbidden words: only reject if the rewrite contains meta-commentary
 // about manipulation techniques (the AI explaining itself instead of rewriting).
@@ -160,7 +161,7 @@ export async function combinedDetectAndNeutralize(
     const analysis: AnalysisResult = {
       postId: '',
       techniques: verified,
-      overallScore: present.reduce((sum, t) => sum + t.severity, 0),
+      overallScore: aggregateSeverity(verified),
       overallConfidence: response.overallConfidence ?? (present.length > 0 ? Math.max(...present.map(t => t.confidence)) : 0),
       isManipulative: response.overallManipulative ?? present.length > 0,
       processingTimeMs,

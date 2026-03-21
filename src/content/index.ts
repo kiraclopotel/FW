@@ -63,7 +63,12 @@ async function onPostDetected(post: PostContent): Promise<void> {
     // Construct post URL when possible
     let postUrl = '';
     if (post.platform === 'twitter' && post.author && post.id) {
-      postUrl = `https://x.com/${post.author.replace(/^@/, '')}/status/${post.id}`;
+      // Only build URL if author looks like a valid handle (no spaces, alphanumeric + underscores).
+      // The _extractAuthor fallback can return display names with spaces which break the URL.
+      const handle = post.author.replace(/^@/, '');
+      if (/^[A-Za-z0-9_]+$/.test(handle)) {
+        postUrl = `https://x.com/${handle}/status/${post.id}`;
+      }
     }
 
     // Send forensic data to service worker for storage in extension-origin IndexedDB.
