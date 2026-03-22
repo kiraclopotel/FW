@@ -67,27 +67,42 @@ function createPlaceholder(mode: 'child' | 'teen'): HTMLElement {
 
 // --- Hide comments immediately ---
 
+/**
+ * Prepare comments container for FeelingWise overlay.
+ *
+ * CRITICAL: Do NOT hide the container itself (visibility, maxHeight, etc.).
+ * TikTok's React detects container hiding via internal observers and triggers
+ * a "comments_off" error state that darkens the video.
+ *
+ * Instead: hide individual children and inject our placeholder AS a child.
+ * The container stays visible and sized → TikTok's observers don't fire.
+ */
 export function hideCommentsImmediately(
   commentsContainer: HTMLElement,
   mode: Mode,
 ): void {
   if (mode === 'adult') return;
   if (commentsContainer.dataset.fwHidden === 'true') return;
-
-  commentsContainer.style.visibility = 'hidden';
-  commentsContainer.style.maxHeight = '0';
-  commentsContainer.style.overflow = 'hidden';
   commentsContainer.dataset.fwHidden = 'true';
 
+  // Hide each individual child element (not the container!)
+  for (const child of Array.from(commentsContainer.children)) {
+    if (child instanceof HTMLElement && !child.classList.contains('fw-overlay')) {
+      child.style.display = 'none';
+    }
+  }
+
+  // Insert a loading placeholder as a child of the container
   const placeholder = createPlaceholder(mode);
-  commentsContainer.insertAdjacentElement('beforebegin', placeholder);
+  commentsContainer.appendChild(placeholder);
 }
 
 // --- Remove placeholder helper ---
 
 function removePlaceholder(commentsContainer: HTMLElement): void {
-  const placeholder = commentsContainer.previousElementSibling;
-  if (placeholder?.classList.contains('fw-comments-placeholder')) {
+  // Placeholder is now a child of the container (not a sibling)
+  const placeholder = commentsContainer.querySelector('.fw-comments-placeholder');
+  if (placeholder) {
     placeholder.remove();
   }
 }
@@ -181,7 +196,6 @@ export function injectChildEducationalOverlay(
   }
 
   commentsContainer.appendChild(overlay);
-  restoreVisibility(commentsContainer);
 }
 
 // --- Teen mode: rewritten comments with toggles ---
@@ -374,7 +388,6 @@ export function injectTeenRewrittenComments(
   }
 
   commentsContainer.appendChild(overlay);
-  restoreVisibility(commentsContainer);
 }
 
 // --- Hide engagement metrics ---

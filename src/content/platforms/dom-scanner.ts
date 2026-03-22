@@ -441,15 +441,19 @@ export function scanDOM(platform: string): ScanResult {
 
 export function getDiscoveredMetrics(platform: string): HTMLElement[] {
   // Try known selectors first (fast path)
+  // CRITICAL: Use querySelectorAll, not querySelector.
+  // TikTok pre-loads multiple videos — each has its own metric elements.
   const known = KNOWN_SELECTORS[platform]?.metrics ?? [];
   const fromKnown: HTMLElement[] = [];
   for (const sel of known) {
     try {
-      const el = document.querySelector<HTMLElement>(sel);
-      if (el && el.dataset.fwMetricHidden !== 'true') {
-        fromKnown.push(el);
+      const els = document.querySelectorAll<HTMLElement>(sel);
+      for (const el of els) {
+        if (el.dataset.fwMetricHidden !== 'true' && !isInsideNavigation(el)) {
+          fromKnown.push(el);
+        }
       }
-    } catch { /* skip */ }
+    } catch { /* skip invalid selector */ }
   }
 
   if (fromKnown.length >= 2) return fromKnown; // Known selectors working fine
@@ -457,9 +461,14 @@ export function getDiscoveredMetrics(platform: string): HTMLElement[] {
   // Structural fallback
   const discovered = discoverMetricElements();
   const elements = discovered
-    .filter(m => m.hasNearbySVG) // Only metrics next to icons (high confidence)
+    .filter(m => m.hasNearbySVG && !isInsideNavigation(
+      // Re-query to get the actual element for the navigation check
+      (() => {
+        try { return document.querySelector<HTMLElement>(m.selector); }
+        catch { return null; }
+      })() as HTMLElement
+    ))
     .map(m => {
-      // Re-query to get the actual element
       try {
         const el = document.querySelector<HTMLElement>(m.selector);
         return el;
