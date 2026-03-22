@@ -7,6 +7,7 @@
 import { NeutralizedContent } from '../types/neutralization';
 import { TechniqueName } from '../types/analysis';
 import { Mode } from '../types/mode';
+import { PlatformAction } from '../types/platform-action';
 
 // ─── Technique display maps ───
 
@@ -507,6 +508,16 @@ button.fw-adult-btn-secondary:hover {
 .fw-animate-in {
   animation: fw-fade-in 0.2s ease-out !important;
 }
+
+/* Video platform: dimmed/flagged video container */
+[data-fw-flagged-video] {
+  transition: opacity 0.3s ease, filter 0.3s ease !important;
+}
+
+/* Flagged comment highlight */
+[data-fw-flagged-comment] {
+  transition: border-color 0.2s ease !important;
+}
 `;
   document.head.appendChild(style);
 }
@@ -913,4 +924,139 @@ function escapeHtml(text: string): string {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// ─── VIDEO PLATFORM ACTIONS ───
+// Handle video-platform-specific actions (suppress comments, flag video).
+// Called instead of injectIntoElement when platform is video-first.
+
+export function injectVideoPlatformAction(
+  action: PlatformAction,
+  el: HTMLElement,
+  neutralized: NeutralizedContent | null,
+  mode: Mode,
+  platform: string,
+): void {
+  try {
+    injectStyles();
+
+    switch (action) {
+      case 'suppress-comments':
+        suppressComments(el, platform);
+        break;
+      case 'flag-video':
+        if (neutralized) flagVideoContainer(el, neutralized, mode);
+        break;
+      case 'flag-comments':
+        if (neutralized) flagComment(el, neutralized, mode);
+        break;
+    }
+  } catch {
+    // Consistency rule 13: failure = original stays
+  }
+}
+
+function suppressComments(el: HTMLElement, platform: string): void {
+  // Find the comments section container and collapse it
+  let commentsContainer: HTMLElement | null = null;
+
+  if (platform === 'youtube') {
+    commentsContainer = document.querySelector<HTMLElement>('ytd-comments#comments');
+  } else if (platform === 'tiktok') {
+    commentsContainer = el.closest('[data-e2e="comment-list"]') as HTMLElement;
+  } else if (platform === 'instagram') {
+    // Instagram comments are in UL elements under articles
+    commentsContainer = el.closest('ul') as HTMLElement;
+  }
+
+  if (!commentsContainer) return;
+  if (commentsContainer.dataset.fwSuppressed) return;
+
+  commentsContainer.dataset.fwSuppressed = 'true';
+  commentsContainer.style.display = 'none';
+  // Leave no trace in child mode — the comments section simply doesn't appear
+}
+
+function flagVideoContainer(el: HTMLElement, neutralized: NeutralizedContent, mode: Mode): void {
+  // Find the video's parent container
+  const container = el.closest('article') ??
+    el.closest('[data-e2e="recommend-list-item-container"]') ??
+    el.closest('ytd-rich-item-renderer') ??
+    el.closest('ytd-video-renderer') ??
+    el.parentElement;
+
+  if (!container || (container as HTMLElement).dataset.fwFlaggedVideo) return;
+  (container as HTMLElement).dataset.fwFlaggedVideo = 'true';
+
+  if (mode === 'child') {
+    // Child mode: dim the video, no explanation
+    (container as HTMLElement).style.opacity = '0.3';
+    (container as HTMLElement).style.filter = 'grayscale(0.8)';
+    (container as HTMLElement).style.pointerEvents = 'none';
+    return;
+  }
+
+  // Teen/adult: add a badge overlay (similar to adult dot but on video container)
+  const dot = document.createElement('span');
+  dot.className = 'fw-adult-dot';
+  dot.classList.add('fw-animate-in');
+  dot.style.top = '12px';
+  dot.style.left = '12px';
+  dot.style.width = '8px';
+  dot.style.height = '8px';
+
+  if (getComputedStyle(container as HTMLElement).position === 'static') {
+    (container as HTMLElement).style.position = 'relative';
+  }
+
+  // Click to toggle analysis panel
+  dot.addEventListener('click', (e) => {
+    e.stopPropagation();
+
+    const existingPanel = (container as HTMLElement).querySelector('.fw-adult-panel');
+    if (existingPanel) {
+      existingPanel.remove();
+      return;
+    }
+
+    const techniques = neutralized.analysis.techniques.filter(t => t.present);
+    const panel = document.createElement('div');
+    panel.className = mode === 'teen' ? 'fw-teen-panel fw-animate-in' : 'fw-adult-panel fw-animate-in';
+
+    const techList = techniques.map(t =>
+      `${escapeHtml(t.technique.replace(/-/g, ' '))} (severity ${t.severity}/10)`
+    ).join(', ');
+
+    panel.innerHTML = `
+      <div class="fw-panel-header">${mode === 'teen' ? '\u2726' : '\u26a0'} Manipulation signals detected</div>
+      <div class="fw-panel-label">Source</div>
+      <div class="fw-panel-detail">Detected in title, description, or comments \u2014 video content not analyzed</div>
+      <div class="fw-panel-label">Signals</div>
+      <div class="fw-panel-detail">${techList || 'Multiple signals detected'}</div>
+      <div class="fw-panel-label">Confidence</div>
+      <div class="fw-panel-detail">${Math.round(neutralized.analysis.overallConfidence * 100)}% (based on text environment only)</div>
+    `;
+
+    el.insertAdjacentElement('afterend', panel);
+  });
+
+  (container as HTMLElement).appendChild(dot);
+}
+
+function flagComment(el: HTMLElement, neutralized: NeutralizedContent, _mode: Mode): void {
+  // For teen mode on video platforms: show the comment with an inline analysis indicator
+  if (el.dataset.fwFlaggedComment) return;
+  el.dataset.fwFlaggedComment = 'true';
+
+  // Add a subtle left border to flagged comments
+  el.style.borderLeft = '2px solid rgba(255, 171, 64, 0.4)';
+  el.style.paddingLeft = '8px';
+
+  // Add the teen pill after the comment
+  const pill = document.createElement('span');
+  pill.className = 'fw-teen-pill';
+  pill.textContent = '\u2726 flagged';
+  pill.style.display = 'block';
+  pill.style.marginTop = '4px';
+  el.appendChild(pill);
 }
