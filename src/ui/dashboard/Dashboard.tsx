@@ -9,6 +9,7 @@ import { exportJSON, exportCSV } from '../../forensics/exporter';
 import { verifyBatch, BatchVerificationResult } from '../../forensics/chain-of-custody';
 import { getVerdicts, UserVerdict } from '../../forensics/feedback-store';
 import { getAllAuthorProfiles, AuthorProfile } from '../../forensics/author-store';
+import { sha256 } from '../../forensics/hasher';
 
 // ─── Design tokens ───
 const C = {
@@ -103,8 +104,19 @@ function Dashboard() {
   const [verifying, setVerifying] = useState(false);
   const [verdicts, setVerdicts] = useState<UserVerdict[]>([]);
   const [authorProfiles, setAuthorProfiles] = useState<AuthorProfile[]>([]);
+  const [pinRequired, setPinRequired] = useState<boolean | null>(null);
+  const [pinUnlocked, setPinUnlocked] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
 
   useEffect(() => {
+    chrome.storage.local.get('parentPin').then(result => {
+      setPinRequired(!!result.parentPin);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (pinRequired === null || (pinRequired && !pinUnlocked)) return;
     Promise.all([getRecords(), getStats(), getVerdicts(), getAllAuthorProfiles()])
       .then(([recs, st, vds, authors]) => {
         console.log(`[FeelingWise] Dashboard: loaded ${recs.length} records, ${vds.length} verdicts, ${authors.length} author profiles`);
@@ -115,7 +127,19 @@ function Dashboard() {
       })
       .catch(err => { console.error('[FeelingWise] Dashboard: failed to load records:', err); })
       .finally(() => setLoading(false));
-  }, []);
+  }, [pinRequired, pinUnlocked]);
+
+  const handlePinSubmit = async () => {
+    const hash = await sha256(pinInput);
+    const result = await chrome.storage.local.get('parentPin');
+    if (hash === result.parentPin) {
+      setPinUnlocked(true);
+      setPinError(false);
+    } else {
+      setPinError(true);
+      setPinInput('');
+    }
+  };
 
   const handleVerify = async () => {
     setVerifying(true);
@@ -136,6 +160,76 @@ function Dashboard() {
     fontFamily: font,
     fontSize: 14,
   };
+
+  if (pinRequired === null) {
+    return <div style={page} />;
+  }
+
+  if (pinRequired && !pinUnlocked) {
+    return (
+      <div style={{ ...page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 8,
+          padding: 32,
+          width: 340,
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 16,
+        }}>
+          <div style={{ fontSize: 18, fontWeight: 600, color: C.text }}>Parent Verification Required</div>
+          <div style={{ fontSize: 13, color: C.muted }}>Enter your 4-digit PIN to access the dashboard</div>
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={4}
+            pattern="[0-9]*"
+            value={pinInput}
+            onChange={e => {
+              setPinError(false);
+              setPinInput(e.target.value.replace(/\D/g, ''));
+            }}
+            onKeyDown={e => { if (e.key === 'Enter' && pinInput.length === 4) handlePinSubmit(); }}
+            autoFocus
+            style={{
+              background: C.bg,
+              border: `1px solid ${pinError ? C.red : C.borderLight}`,
+              borderRadius: 6,
+              color: C.text,
+              fontSize: 24,
+              letterSpacing: 12,
+              textAlign: 'center',
+              padding: '10px 16px',
+              outline: 'none',
+              fontFamily: font,
+            }}
+          />
+          {pinError && (
+            <div style={{ color: C.red, fontSize: 13 }}>Incorrect PIN</div>
+          )}
+          <button
+            onClick={handlePinSubmit}
+            disabled={pinInput.length !== 4}
+            style={{
+              background: pinInput.length === 4 ? C.teal : C.borderLight,
+              color: pinInput.length === 4 ? '#fff' : C.muted,
+              border: 'none',
+              borderRadius: 6,
+              padding: '10px 0',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: pinInput.length === 4 ? 'pointer' : 'default',
+              fontFamily: font,
+            }}
+          >
+            Unlock Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

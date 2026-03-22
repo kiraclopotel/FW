@@ -3,20 +3,25 @@
 // WebLLM removed — all AI calls go through src/ai/client.ts (API-based).
 // Forensic records are stored here (extension origin) so the dashboard can read them.
 
-import { incrementNeutralized } from '../storage/settings';
+import { incrementNeutralized, getSettings } from '../storage/settings';
 import { logForensicEvent } from '../forensics/logger';
 import { addVerdict } from '../forensics/feedback-store';
 import { updateAuthorProfile } from '../forensics/author-store';
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[FeelingWise] Extension installed');
+  chrome.action.setBadgeText({ text: '' });
 });
 
 // Handle messages from content scripts and popup
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 chrome.runtime.onMessage.addListener((message: { type: string; payload?: any }, _sender, _sendResponse) => {
   if (message.type === 'NEUTRALIZATION_COMPLETE') {
-    incrementNeutralized();
+    incrementNeutralized().then(async () => {
+      const settings = await getSettings();
+      chrome.action.setBadgeText({ text: String(settings.totalNeutralizedToday) });
+      chrome.action.setBadgeBackgroundColor({ color: '#00bcd4' });
+    });
   }
 
   if (message.type === 'FORENSIC_LOG' && message.payload) {
@@ -65,4 +70,11 @@ chrome.runtime.onMessage.addListener((message: { type: string; payload?: any }, 
   }
 
   return false;
+});
+
+// Clear badge when daily stats reset (lastResetDate changes)
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.lastResetDate) {
+    chrome.action.setBadgeText({ text: '' });
+  }
 });
