@@ -49,6 +49,19 @@ const TECHNIQUE_QUESTIONS: Record<TechniqueName, string> = {
   'combined': 'Count them: how many different emotions is this post trying to trigger at once? The more buttons it pushes, the less it trusts its own argument.',
 };
 
+const TECHNIQUE_TLDR: Record<TechniqueName, string> = {
+  'fear-appeal': 'Amps up fear to stop you from thinking clearly.',
+  'shame-attack': 'Attacks who you are instead of making an argument.',
+  'anger-trigger': 'Designed to make you angry before you can think.',
+  'false-urgency': 'Fake deadline to make you act without thinking.',
+  'bandwagon': 'Pretends everyone agrees so you feel weird for disagreeing.',
+  'scapegoating': 'Blames one group for a complicated problem.',
+  'fomo': 'Makes you panic about missing something that doesn\'t matter.',
+  'toxic-positivity': 'Tells you your real feelings are wrong.',
+  'misleading-format': 'Uses ALL CAPS and visual tricks to bypass your brain.',
+  'combined': 'Stacks multiple tricks at once to overwhelm your defenses.',
+};
+
 const TECHNIQUE_COLORS: Record<TechniqueName, string> = {
   'fear-appeal': '#ef5350',
   'anger-trigger': '#ff7043',
@@ -266,6 +279,12 @@ div.fw-teen-panel .fw-panel-explanation {
   color: rgb(139, 152, 165) !important;
   font-size: 14px !important;
   margin-top: 4px !important;
+}
+div.fw-teen-panel .fw-panel-detail {
+  color: rgb(139, 152, 165) !important;
+  font-size: 13px !important;
+  margin-top: 4px !important;
+  line-height: 1.5 !important;
 }
 div.fw-teen-panel .fw-panel-question {
   color: rgb(29, 155, 240) !important;
@@ -598,11 +617,14 @@ function injectTeen(el: HTMLElement, neutralized: NeutralizedContent, visible: b
     let techniquesHtml = '';
     for (const t of presentTechniques) {
       const name = TECHNIQUE_NAMES[t.technique] ?? t.technique;
+      const tldr = TECHNIQUE_TLDR[t.technique] ?? '';
       const explanation = TECHNIQUE_EXPLANATIONS[t.technique] ?? '';
       const question = TECHNIQUE_QUESTIONS[t.technique] ?? '';
       techniquesHtml += `
         <div class="fw-panel-label">${escapeHtml(name)} (severity ${t.severity}/10)</div>
-        <div class="fw-panel-explanation">${escapeHtml(explanation)}</div>
+        <div class="fw-panel-explanation">${escapeHtml(tldr)}</div>
+        <div class="fw-panel-expand" style="cursor:pointer;color:rgb(29,155,240);font-size:12px;margin-top:4px">Learn more \u25b8</div>
+        <div class="fw-panel-detail" style="display:none">${escapeHtml(explanation)}</div>
         <div class="fw-panel-question">\u2192 ${escapeHtml(question)}</div>
       `;
     }
@@ -617,6 +639,17 @@ function injectTeen(el: HTMLElement, neutralized: NeutralizedContent, visible: b
         <button class="fw-teen-dispute">Not manipulation</button>
       </div>
     `;
+
+    panel.querySelectorAll('.fw-panel-expand').forEach(expandEl => {
+      expandEl.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const detail = expandEl.nextElementSibling as HTMLElement | null;
+        if (!detail) return;
+        const isHidden = detail.style.display === 'none';
+        detail.style.display = isHidden ? 'block' : 'none';
+        expandEl.textContent = isHidden ? 'Learn more \u25be' : 'Learn more \u25b8';
+      });
+    });
 
     panel.querySelector('.fw-teen-gotit')?.addEventListener('click', (ev) => {
       ev.stopPropagation();
