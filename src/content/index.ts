@@ -87,6 +87,14 @@ function onProcessingResult(post: PostContent, result: PipelineResult): void {
           author: post.author,
           postUrl,
           feedSource: post.feedSource ?? 'unknown',
+          aiModel: result.aiMeta?.model,
+          aiProvider: result.aiMeta?.provider,
+          detectionMode: result.detectionMode,
+          configSnapshot: {
+            mode: settings.mode,
+            threshold: settings.mode === 'child' ? 0.45 : settings.mode === 'teen' ? 0.40 : 0.35,
+            dailyCap: settings.dailyCap,
+          },
         },
       }).catch(err => { console.error('[FeelingWise] Forensic logging error:', err); });
     });

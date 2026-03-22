@@ -178,6 +178,20 @@ function SetupScreen({ settings, update, onDone }: {
   update: (p: Partial<FWSettings>) => Promise<void>;
   onDone: () => void;
 }) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [selectedMode, setSelectedMode] = useState<Mode | null>(null);
+  const [pinPhase, setPinPhase] = useState<'none' | 'enter' | 'confirm'>('none');
+  const [pinDigits, setPinDigits] = useState(['', '', '', '']);
+  const [firstPin, setFirstPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const pinRefs = [
+    useState<HTMLInputElement | null>(null),
+    useState<HTMLInputElement | null>(null),
+    useState<HTMLInputElement | null>(null),
+    useState<HTMLInputElement | null>(null),
+  ];
+
+  // Step 3 state (existing setup)
   const [provider, setProvider] = useState<Provider>(
     (settings.apiProvider !== 'managed' ? settings.apiProvider : 'deepseek') as Provider
   );
@@ -197,6 +211,202 @@ function SetupScreen({ settings, update, onDone }: {
     onDone();
   };
 
+  const modeDescriptions: Record<Mode, string> = {
+    child: 'Ages 8-11 — Silently rewrites manipulative content',
+    teen: 'Ages 12-17 — Shows what changed and why',
+    adult: 'Ages 18+ — Flags manipulation, no rewriting',
+  };
+  const modeIcons: Record<Mode, string> = { child: '\u{1F512}', teen: '\u{1F4D6}', adult: '\u{1F441}' };
+
+  const handleModeSelect = async (m: Mode) => {
+    setSelectedMode(m);
+    await update({ mode: m });
+    if (m === 'child' || m === 'teen') {
+      setPinPhase('enter');
+      setPinDigits(['', '', '', '']);
+      setPinError('');
+      setTimeout(() => pinRefs[0][0]?.focus(), 50);
+    } else {
+      setStep(3);
+    }
+  };
+
+  const handlePinDigit = async (index: number, value: string) => {
+    if (!/^\d?$/.test(value)) return;
+    const next = [...pinDigits];
+    next[index] = value;
+    setPinDigits(next);
+    setPinError('');
+
+    if (value && index < 3) {
+      pinRefs[index + 1][0]?.focus();
+    }
+
+    if (value && index === 3) {
+      const pin = next.join('');
+      if (pinPhase === 'enter') {
+        setFirstPin(pin);
+        setPinDigits(['', '', '', '']);
+        setPinPhase('confirm');
+        setTimeout(() => pinRefs[0][0]?.focus(), 50);
+      } else if (pinPhase === 'confirm') {
+        if (pin === firstPin) {
+          await setPin(pin);
+          const s = await getSettings();
+          await update({ parentPin: s.parentPin });
+          setStep(3);
+        } else {
+          setPinError('PINs do not match');
+          setTimeout(() => {
+            setPinDigits(['', '', '', '']);
+            setPinError('');
+            setPinPhase('enter');
+            setFirstPin('');
+            pinRefs[0][0]?.focus();
+          }, 600);
+        }
+      }
+    }
+  };
+
+  const handlePinKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !pinDigits[index] && index > 0) {
+      pinRefs[index - 1][0]?.focus();
+    }
+  };
+
+  const pinBoxStyle: CSSProperties = {
+    width: 36, height: 42, textAlign: 'center', fontSize: 18, fontWeight: 600,
+    background: C.card, color: C.text, border: `1px solid ${pinError ? C.red : C.border}`,
+    borderRadius: 6, outline: 'none', fontFamily: font,
+  };
+
+  // ─── Step 1: Welcome ───
+  if (step === 1) {
+    return (
+      <div style={{ padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
+          <span style={{ fontSize: 16, fontWeight: 600 }}>FeelingWise</span>
+          <span style={{ fontSize: 11, color: C.muted }}>v0.1</span>
+        </div>
+
+        <div style={{ fontSize: 15, fontWeight: 600, lineHeight: '1.4', marginBottom: 12 }}>
+          FeelingWise protects your family from online manipulation
+        </div>
+
+        <div style={{ fontSize: 13, color: C.muted, lineHeight: '1.6', marginBottom: 24 }}>
+          It detects psychological tricks in social media posts and rewrites them to remove
+          the manipulation &mdash; same information, zero assault.
+        </div>
+
+        <button
+          onClick={() => setStep(2)}
+          onMouseOver={e => (e.currentTarget.style.opacity = '0.9')}
+          onMouseOut={e => (e.currentTarget.style.opacity = '1')}
+          style={{
+            width: '100%', padding: '12px 0', fontSize: 14, fontWeight: 500,
+            background: C.teal, color: C.bg, border: 'none', borderRadius: 6,
+            cursor: 'pointer', fontFamily: font, transition: 'all 0.15s ease',
+          }}
+        >
+          Get Started &rarr;
+        </button>
+
+        <div
+          onClick={() => setStep(3)}
+          style={{
+            fontSize: 12, color: C.muted, textAlign: 'center', marginTop: 12,
+            cursor: 'pointer', textDecoration: 'underline',
+          }}
+        >
+          Already have an API key? Skip to setup &rarr;
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Step 2: Who is this for? ───
+  if (step === 2) {
+    return (
+      <div style={{ padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+          <span style={{ fontSize: 16, fontWeight: 600 }}>FeelingWise</span>
+          <span style={{ fontSize: 11, color: C.muted }}>v0.1</span>
+        </div>
+
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>
+          Who will be using this browser?
+        </div>
+
+        {pinPhase === 'none' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {(['child', 'teen', 'adult'] as const).map(m => (
+              <button
+                key={m}
+                onClick={() => handleModeSelect(m)}
+                style={{
+                  padding: '14px 16px',
+                  background: C.card,
+                  border: `1px solid ${selectedMode === m ? C.teal : C.border}`,
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontFamily: font,
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
+              >
+                <span style={{ fontSize: 24 }}>{modeIcons[m]}</span>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: C.text }}>{t(m)}</div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{modeDescriptions[m]}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            background: C.card, borderRadius: 8, padding: 16, textAlign: 'center',
+            animation: pinError ? 'fw-shake 0.4s ease' : undefined,
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>
+              Set a parent PIN
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>
+              {pinPhase === 'enter' ? 'Choose a 4-digit PIN to lock protection settings' : 'Confirm your PIN'}
+            </div>
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 8 }}>
+              {pinDigits.map((d, i) => (
+                <input
+                  key={`${pinPhase}-${i}`}
+                  ref={el => { pinRefs[i][1](el); }}
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={d}
+                  onChange={e => handlePinDigit(i, e.target.value)}
+                  onKeyDown={e => handlePinKeyDown(i, e)}
+                  autoFocus={i === 0}
+                  style={pinBoxStyle}
+                />
+              ))}
+            </div>
+            {pinError && <div style={{ fontSize: 11, color: C.red, marginBottom: 4 }}>{pinError}</div>}
+            <div
+              onClick={() => { setPinPhase('none'); setSelectedMode(null); }}
+              style={{ fontSize: 11, color: C.muted, cursor: 'pointer', marginTop: 4 }}
+            >
+              Cancel
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Step 3: Connect AI (existing setup, refined) ───
   return (
     <div style={{ padding: 20 }}>
       {/* Header */}
@@ -213,9 +423,9 @@ function SetupScreen({ settings, update, onDone }: {
         padding: 12,
         marginBottom: 16,
       }}>
-        <div style={{ fontWeight: 500, marginBottom: 4 }}>{t('connectAI')}</div>
+        <div style={{ fontWeight: 500, marginBottom: 4 }}>Connect AI</div>
         <div style={{ fontSize: 12, color: C.muted, lineHeight: '1.5' }}>
-          {t('connectAIDesc')}
+          FeelingWise uses AI to understand context. You'll need a free API key from one of these providers.
         </div>
       </div>
 
@@ -294,7 +504,7 @@ function SetupScreen({ settings, update, onDone }: {
 
       {/* Link */}
       <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>
-        {t('getFreeKey')} → <a
+        How to get a key (2 minutes) &rarr; <a
           href={meta.link}
           target="_blank"
           rel="noopener noreferrer"

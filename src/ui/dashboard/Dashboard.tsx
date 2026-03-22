@@ -1,7 +1,7 @@
 // FeelingWise — Forensic Intelligence Platform
 // "Data without relationships is noise. Surface the patterns, not just the events."
 
-import { StrictMode, useState, useEffect, CSSProperties } from 'react';
+import { StrictMode, useState, useEffect, useMemo, CSSProperties } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ForensicRecord } from '../../types/forensic';
 import { getRecords, getStats, ForensicStats } from '../../forensics/store';
@@ -10,6 +10,7 @@ import { verifyBatch, BatchVerificationResult } from '../../forensics/chain-of-c
 import { getVerdicts, UserVerdict } from '../../forensics/feedback-store';
 import { getAllAuthorProfiles, AuthorProfile } from '../../forensics/author-store';
 import { sha256 } from '../../forensics/hasher';
+import { detectCampaigns, Campaign } from '../../forensics/campaign-detector';
 
 // ─── Design tokens ───
 const C = {
@@ -128,6 +129,8 @@ function Dashboard() {
       .catch(err => { console.error('[FeelingWise] Dashboard: failed to load records:', err); })
       .finally(() => setLoading(false));
   }, [pinRequired, pinUnlocked]);
+
+  const campaigns = useMemo(() => detectCampaigns(records), [records]);
 
   const handlePinSubmit = async () => {
     const hash = await sha256(pinInput);
@@ -317,6 +320,10 @@ function Dashboard() {
         {/* Section 2: Algorithm Accountability (lead section) */}
         <SectionHeader title="Algorithm Accountability" subtitle="How much of the manipulation was pushed by the algorithm vs accounts your child chose to follow?" />
         <AlgorithmVsChoice records={records} />
+
+        {/* Section 2.5: Coordinated Campaigns */}
+        <SectionHeader title="Coordinated Campaigns" subtitle="Groups of similar posts using the same manipulation techniques — potential coordinated activity" />
+        <CoordinatedCampaigns campaigns={campaigns} />
 
         {/* Section 3: Platform Breakdown */}
         <SectionHeader title="Platform Breakdown" subtitle="What each platform served — per platform accountability" />
@@ -524,6 +531,72 @@ function TechniqueChart({ byTechnique }: { byTechnique: Record<string, number> }
               background: techniqueColor(name),
               borderRadius: 5,
             }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// Section: Coordinated Campaigns
+// ═══════════════════════════════════════
+
+function CoordinatedCampaigns({ campaigns }: { campaigns: Campaign[] }) {
+  if (campaigns.length === 0) {
+    return (
+      <div style={{ background: C.card, borderRadius: 8, padding: 16, marginBottom: 20, textAlign: 'center' }}>
+        <span style={{ fontSize: 12, color: C.muted }}>No coordinated campaigns detected in the last 24 hours</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+      {campaigns.map(c => (
+        <div key={c.id} style={{
+          background: C.card, borderRadius: 8, padding: 14,
+          border: `1px solid ${C.border}`,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.amber }}>
+              {c.records.length} similar posts
+            </span>
+            <span style={{ fontSize: 11, color: C.muted }}>
+              similarity: {(c.similarity * 100).toFixed(0)}%
+            </span>
+          </div>
+
+          {/* Shared techniques */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+            {c.sharedTechniques.map(t => (
+              <span key={t} style={{
+                fontSize: 10, padding: '2px 6px', borderRadius: 4,
+                background: (TECHNIQUE_COLORS[t] ?? C.muted) + '22',
+                color: TECHNIQUE_COLORS[t] ?? C.muted,
+                fontWeight: 500,
+              }}>
+                {t}
+              </span>
+            ))}
+          </div>
+
+          {/* Platforms */}
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>
+            Platforms: {c.platforms.map(p => PLATFORM_LABELS[p] ?? p).join(', ')}
+          </div>
+
+          {/* Time span */}
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>
+            {new Date(c.firstSeen).toLocaleString()} &mdash; {new Date(c.lastSeen).toLocaleString()}
+          </div>
+
+          {/* Representative snippet */}
+          <div style={{
+            fontSize: 11, color: C.textSecondary, fontStyle: 'italic',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            &ldquo;{c.records[0].originalText.slice(0, 100)}{c.records[0].originalText.length > 100 ? '...' : ''}&rdquo;
           </div>
         </div>
       ))}
@@ -1397,6 +1470,9 @@ function ActivityLog({ records }: { records: ForensicRecord[] }) {
                   <span>Platform: <strong style={{ color: C.textSecondary }}>{platformLabel(r.platform)}</strong></span>
                   {r.author && <span>Author: <strong style={{ color: C.textSecondary }}>{r.author}</strong></span>}
                   <span>AI: <strong style={{ color: C.textSecondary }}>{r.aiSource}</strong></span>
+                  <span>Model: <strong style={{ color: C.textSecondary }}>{r.aiModel || 'N/A'}</strong></span>
+                  <span>Provider: <strong style={{ color: C.textSecondary }}>{r.aiProvider || 'N/A'}</strong></span>
+                  {r.detectionMode && <span>Mode: <strong style={{ color: C.textSecondary }}>{r.detectionMode}</strong></span>}
                   <span>Age mode: <strong style={{ color: C.textSecondary }}>{r.userAgeCategory}</strong></span>
                   <span>Length: <strong style={{ color: C.textSecondary }}>{r.originalLength} chars</strong></span>
                   <span>Time: <strong style={{ color: C.textSecondary }}>{new Date(r.timestamp).toLocaleString()}</strong></span>

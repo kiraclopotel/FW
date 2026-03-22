@@ -37,6 +37,10 @@ chrome.runtime.onMessage.addListener((message: { type: string; payload?: any }, 
       p.author,
       p.postUrl,
       p.feedSource ?? 'unknown',
+      p.aiModel,
+      p.aiProvider,
+      p.detectionMode,
+      p.configSnapshot,
     ).catch(err => { console.error('[FeelingWise] Service worker forensic log failed:', err); });
   }
 

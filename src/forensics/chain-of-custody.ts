@@ -20,6 +20,10 @@ async function computeIntegrityHash(record: ForensicRecord): Promise<string> {
     userAgeCategory: record.userAgeCategory,
     aiSource: record.aiSource,
     feedSource: record.feedSource,
+    aiModel: record.aiModel ?? '',
+    aiProvider: record.aiProvider ?? '',
+    detectionMode: record.detectionMode ?? '',
+    configSnapshot: record.configSnapshot ?? null,
   });
   return sha256(payload);
 }
