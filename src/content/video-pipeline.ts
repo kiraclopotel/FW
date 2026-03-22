@@ -79,14 +79,18 @@ function getCurrentVideoDescription(platform: Platform): string {
 
 // --- Forensic logging ---
 
-function logScanEvent(platform: Platform, action: 'pass' | 'neutralize' | 'flag', videoTitle: string): void {
+function logScanEvent(
+  platform: Platform,
+  action: 'comments-hidden' | 'comments-educational' | 'comments-rewritten' | 'pass',
+  videoTitle: string,
+): void {
   try {
     chrome.runtime.sendMessage({
       type: 'SCAN_LOG',
       payload: {
         platform,
         action,
-        feedSource: 'for-you' as const,
+        feedSource: 'video' as const,
         author: 'unknown',
         postId: videoTitle.slice(0, 80),
         timestamp: new Date().toISOString(),
@@ -128,7 +132,7 @@ async function runVideoPipeline(
 
   // Step 4a: child hidden mode — container stays hidden from step 1, nothing more to do
   if (mode === 'child' && videoControls.childCommentMode === 'hidden') {
-    logScanEvent(platform, 'neutralize', videoTitle);
+    logScanEvent(platform, 'comments-hidden', videoTitle);
     return;
   }
 
@@ -168,7 +172,7 @@ async function runVideoPipeline(
       if (result.comments.length > 0) {
         injectChildEducationalOverlay(container, result);
       }
-      logScanEvent(platform, 'neutralize', videoTitle);
+      logScanEvent(platform, 'comments-educational', videoTitle);
       return;
     }
 
@@ -182,7 +186,7 @@ async function runVideoPipeline(
       if (result.comments.length > 0) {
         injectTeenRewrittenComments(container, result, videoControls.teenShowLessons);
       }
-      logScanEvent(platform, 'neutralize', videoTitle);
+      logScanEvent(platform, 'comments-rewritten', videoTitle);
       return;
     }
   } catch (err) {
