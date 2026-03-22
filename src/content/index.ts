@@ -9,6 +9,7 @@ import { FourchanAdapter } from './platforms/fourchan';
 import { YoutubeAdapter } from './platforms/youtube';
 import { RedditAdapter } from './platforms/reddit';
 import { TiktokAdapter } from './platforms/tiktok';
+import { InstagramAdapter } from './platforms/instagram';
 import { ContentInterceptor } from './interceptor';
 import { PostContent } from '../types/post';
 import { PlatformAdapter } from './platforms/adapter';
@@ -120,6 +121,8 @@ function resolveAdapter(platform: ReturnType<typeof detectCurrentPlatform>) {
       return new TwitterAdapter();
     case 'facebook':
       return new FacebookAdapter();
+    case 'instagram':
+      return new InstagramAdapter();
     case 'reddit':
       return new RedditAdapter();
     case '4chan':
