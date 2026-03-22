@@ -12,6 +12,7 @@ import { getAllAuthorProfiles, AuthorProfile } from '../../forensics/author-stor
 import { sha256 } from '../../forensics/hasher';
 import { detectCampaigns, Campaign } from '../../forensics/campaign-detector';
 import { computeScanStats, ScanStats } from '../../forensics/scan-log';
+import { detectAnomalies, AnomalyAlert } from '../../forensics/anomaly-detector';
 
 // ─── Design tokens ───
 const C = {
@@ -107,6 +108,7 @@ function Dashboard() {
   const [verdicts, setVerdicts] = useState<UserVerdict[]>([]);
   const [authorProfiles, setAuthorProfiles] = useState<AuthorProfile[]>([]);
   const [scanStats, setScanStats] = useState<ScanStats | null>(null);
+  const [anomalies, setAnomalies] = useState<AnomalyAlert[]>([]);
   const [pinRequired, setPinRequired] = useState<boolean | null>(null);
   const [pinUnlocked, setPinUnlocked] = useState(false);
   const [pinInput, setPinInput] = useState('');
@@ -128,6 +130,7 @@ function Dashboard() {
         setVerdicts(vds);
         setAuthorProfiles(authors);
         setScanStats(scans);
+        detectAnomalies().then(setAnomalies).catch(() => {});
       })
       .catch(err => { console.error('[FeelingWise] Dashboard: failed to load records:', err); })
       .finally(() => setLoading(false));
@@ -319,6 +322,38 @@ function Dashboard() {
             />
           )}
         </div>
+
+        {/* Anomaly Alerts */}
+        {anomalies.length > 0 && (
+          <>
+            <SectionHeader title="Alerts" subtitle="Unusual patterns detected — review these before scrolling further" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+              {anomalies.map((a, i) => {
+                const color = a.severity === 'critical' ? C.red : a.severity === 'warning' ? C.amber : C.teal;
+                const icon = a.severity === 'critical' ? '\u{1F6A8}' : a.severity === 'warning' ? '\u26a0\ufe0f' : '\u{1F4CA}';
+                return (
+                  <div key={i} style={{
+                    background: color + '12',
+                    border: `1px solid ${color}33`,
+                    borderLeft: `4px solid ${color}`,
+                    borderRadius: 8,
+                    padding: '12px 16px',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 16 }}>{icon}</span>
+                      <span style={{ fontSize: 14, fontWeight: 600, color }}>{a.message}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 4, marginLeft: 28 }}>
+                      Observed: {typeof a.observed === 'number' && a.observed < 1 ? (a.observed * 100).toFixed(1) + '%' : a.observed}
+                      {' · '}Baseline: {typeof a.baseline === 'number' && a.baseline < 1 ? (a.baseline * 100).toFixed(1) + '%' : Math.round(a.baseline)}
+                      {' · '}{a.ratio.toFixed(1)}x ratio
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         {/* Section 2: Algorithm Accountability (lead section) */}
         <SectionHeader title="Algorithm Accountability" subtitle="How much of the manipulation was pushed by the algorithm vs accounts your child chose to follow?" />
