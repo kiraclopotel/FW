@@ -14,7 +14,7 @@ export function getMetricElements(platform: string): HTMLElement[] {
     case 'youtube': {
       // Like count text
       const likeCount = document.querySelector<HTMLElement>(
-        'ytd-menu-renderer yt-formatted-string#text[aria-label*="like"]'
+        'ytd-menu-renderer yt-formatted-string[aria-label*="like" i]'
       );
       if (likeCount) elements.push(likeCount);
 
@@ -67,6 +67,12 @@ export function getMetricElements(platform: string): HTMLElement[] {
         'span[class] span:has(> svg[aria-label*="Play"])'
       );
       if (viewSection) elements.push(viewSection);
+
+      // Comment count (aria-label based, case-insensitive)
+      const commentCount = document.querySelector<HTMLElement>(
+        '[aria-label*="comment" i]'
+      );
+      if (commentCount) elements.push(commentCount);
       break;
     }
   }
