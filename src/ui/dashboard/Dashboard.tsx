@@ -1224,9 +1224,9 @@ function CalibrationStatus({ verdicts }: { verdicts: UserVerdict[] }) {
   const rateColor = agreementRate >= 0.7 ? C.green : agreementRate >= 0.5 ? C.amber : C.red;
 
   // Breakdown by mode
-  const byMode: Record<string, { confirmed: number; disputed: number }> = {};
+  const byMode: Record<string, { confirmed: number; disputed: number; spotted: number }> = {};
   for (const v of verdicts) {
-    if (!byMode[v.mode]) byMode[v.mode] = { confirmed: 0, disputed: 0 };
+    if (!byMode[v.mode]) byMode[v.mode] = { confirmed: 0, disputed: 0, spotted: 0 };
     byMode[v.mode][v.verdict]++;
   }
 
