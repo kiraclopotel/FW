@@ -19,6 +19,7 @@ import { getSettings } from '../storage/settings';
 import { injectIntoElement } from './injector';
 import { ProcessingQueue } from './queue';
 import { initVideoPipeline } from './video-pipeline';
+import { scanDOM } from './platforms/dom-scanner';
 
 let activeAdapter: PlatformAdapter | null = null;
 let queue: ProcessingQueue | null = null;
@@ -44,6 +45,10 @@ function init(): void {
   }
 
   console.log(`[FeelingWise] active on ${platform}`);
+
+  // DOM diagnostic scanner: auto-scan on load and expose __FW_SCAN() for manual console use
+  scanDOM(platform);
+  (window as any).__FW_SCAN = () => scanDOM(platform);
 }
 
 async function onPostDetected(post: PostContent): Promise<void> {
