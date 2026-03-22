@@ -49,6 +49,19 @@ const TECHNIQUE_QUESTIONS: Record<TechniqueName, string> = {
   'combined': 'Count them: how many different emotions is this post trying to trigger at once? The more buttons it pushes, the less it trusts its own argument.',
 };
 
+const TECHNIQUE_COLORS: Record<TechniqueName, string> = {
+  'fear-appeal': '#ef5350',
+  'anger-trigger': '#ff7043',
+  'shame-attack': '#ab47bc',
+  'false-urgency': '#ffab40',
+  'bandwagon': '#42a5f5',
+  'scapegoating': '#ec407a',
+  'fomo': '#ffa726',
+  'toxic-positivity': '#66bb6a',
+  'misleading-format': '#78909c',
+  'combined': '#5c6bc0',
+};
+
 // ─── MutationObserver guards ───
 
 const guards = new WeakMap<HTMLElement, MutationObserver>();
@@ -281,6 +294,88 @@ button.fw-teen-gotit:hover {
   background: rgba(231, 233, 234, 0.1) !important;
 }
 
+/* Teen mode actions — flex row for Got it + Not manipulation */
+.fw-teen-actions {
+  display: flex !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  margin-top: 10px !important;
+}
+button.fw-teen-dispute {
+  display: block !important;
+  padding: 6px 18px !important;
+  background: transparent !important;
+  border: 1px solid rgba(255, 171, 64, 0.3) !important;
+  border-radius: 9999px !important;
+  color: rgb(231, 233, 234) !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  transition: background 0.15s ease !important;
+}
+button.fw-teen-dispute:hover {
+  background: rgba(255, 171, 64, 0.1) !important;
+}
+
+/* Teen mode challenge panel */
+div.fw-teen-challenge {
+  background: rgb(22, 24, 28) !important;
+  border: 1px solid rgb(47, 51, 54) !important;
+  border-radius: 16px !important;
+  padding: 12px 16px !important;
+  margin-top: 8px !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  font-size: 15px !important;
+  color: rgb(231, 233, 234) !important;
+  line-height: 1.4 !important;
+  pointer-events: all !important;
+}
+.fw-teen-challenge-prompt {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: rgb(231, 233, 234) !important;
+  margin-bottom: 10px !important;
+}
+.fw-teen-challenge-options {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  margin-bottom: 8px !important;
+}
+button.fw-teen-challenge-btn {
+  padding: 6px 14px !important;
+  background: transparent !important;
+  border: 1px solid rgba(113, 118, 123, 0.3) !important;
+  border-radius: 9999px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  transition: background 0.15s ease, border-color 0.15s ease !important;
+}
+button.fw-teen-challenge-btn:hover {
+  background: rgba(231, 233, 234, 0.05) !important;
+}
+.fw-teen-challenge-skip {
+  display: block !important;
+  text-align: center !important;
+  color: rgb(113, 118, 123) !important;
+  font-size: 13px !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+  margin-top: 4px !important;
+}
+.fw-teen-challenge-skip:hover {
+  text-decoration: underline !important;
+}
+.fw-teen-challenge-result {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  margin-top: 8px !important;
+  text-align: center !important;
+}
+
 /* Adult mode dot — top-left to avoid ALL Twitter interactive buttons */
 span.fw-adult-dot {
   position: absolute !important;
@@ -491,16 +586,8 @@ function injectTeen(el: HTMLElement, neutralized: NeutralizedContent, visible: b
   pill.appendChild(label);
   pill.appendChild(techSpan);
 
-  pill.addEventListener('click', (e) => {
-    e.stopPropagation();
-
-    // Toggle panel
-    const existingPanel = el.parentElement?.querySelector('.fw-teen-panel');
-    if (existingPanel) {
-      existingPanel.remove();
-      return;
-    }
-
+  // Helper: build the full analysis panel element
+  function buildAnalysisPanel(): HTMLDivElement {
     const originalText = el.getAttribute('data-fw-original')?.replace(/<[^>]*>/g, '') ?? '';
 
     const panel = document.createElement('div');
@@ -525,21 +612,154 @@ function injectTeen(el: HTMLElement, neutralized: NeutralizedContent, visible: b
       <div class="fw-panel-label">Original</div>
       <div class="fw-panel-original">${escapeHtml(originalText)}</div>
       ${techniquesHtml}
-      <button class="fw-teen-gotit">Got it</button>
+      <div class="fw-teen-actions">
+        <button class="fw-teen-gotit">Got it</button>
+        <button class="fw-teen-dispute">Not manipulation</button>
+      </div>
     `;
 
     panel.querySelector('.fw-teen-gotit')?.addEventListener('click', (ev) => {
       ev.stopPropagation();
       panel.remove();
-      // Send confirmed verdict — teen clicked "Got it" = they understood the manipulation
       chrome.runtime.sendMessage({
         type: 'USER_VERDICT',
         payload: { postId: neutralized.postId, verdict: 'confirmed', mode: 'teen' },
       }).catch(() => {});
     });
 
-    // Insert panel after the pill
-    pill.insertAdjacentElement('afterend', panel);
+    panel.querySelector('.fw-teen-dispute')?.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      chrome.runtime.sendMessage({
+        type: 'USER_VERDICT',
+        payload: { postId: neutralized.postId, verdict: 'disputed', mode: 'teen' },
+      }).catch(() => {});
+      // Restore original text and disconnect guard
+      const origHtml = el.getAttribute('data-fw-original') ?? '';
+      const origText = origHtml.replace(/<[^>]*>/g, '');
+      replaceText(el, origText);
+      const guard = guards.get(el);
+      if (guard) {
+        guard.disconnect();
+        guards.delete(el);
+      }
+      panel.remove();
+    });
+
+    return panel;
+  }
+
+  // Helper: show the analysis panel, replacing a given element if provided
+  function showAnalysisPanel(replaceEl?: HTMLElement): void {
+    const panel = buildAnalysisPanel();
+    if (replaceEl && replaceEl.parentElement) {
+      replaceEl.parentElement.insertBefore(panel, replaceEl);
+      replaceEl.remove();
+    } else {
+      pill.insertAdjacentElement('afterend', panel);
+    }
+  }
+
+  pill.addEventListener('click', (e) => {
+    e.stopPropagation();
+
+    // Toggle — remove existing panel or challenge
+    const existingPanel = el.parentElement?.querySelector('.fw-teen-panel');
+    if (existingPanel) {
+      existingPanel.remove();
+      return;
+    }
+    const existingChallenge = el.parentElement?.querySelector('.fw-teen-challenge');
+    if (existingChallenge) {
+      existingChallenge.remove();
+      return;
+    }
+
+    // Build challenge panel
+    const challenge = document.createElement('div');
+    challenge.className = 'fw-teen-challenge';
+    if (visible) challenge.classList.add('fw-animate-in');
+
+    // Pick 3 wrong options: exclude correct answer AND any present techniques
+    const presentKeys = new Set(presentTechniques.map(t => t.technique));
+    const allKeys = Object.keys(TECHNIQUE_NAMES) as TechniqueName[];
+    const wrongPool = allKeys.filter(k => k !== pillTechnique && !presentKeys.has(k));
+    // Fisher-Yates shuffle
+    for (let i = wrongPool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [wrongPool[i], wrongPool[j]] = [wrongPool[j], wrongPool[i]];
+    }
+    const wrongOptions = wrongPool.slice(0, 3);
+
+    // Combine and shuffle all 4 options
+    const options: TechniqueName[] = [pillTechnique, ...wrongOptions];
+    for (let i = options.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [options[i], options[j]] = [options[j], options[i]];
+    }
+
+    // Build challenge HTML
+    const promptDiv = document.createElement('div');
+    promptDiv.className = 'fw-teen-challenge-prompt';
+    promptDiv.textContent = 'What technique do you think was used?';
+    challenge.appendChild(promptDiv);
+
+    const optionsDiv = document.createElement('div');
+    optionsDiv.className = 'fw-teen-challenge-options';
+
+    for (const opt of options) {
+      const btn = document.createElement('button');
+      btn.className = 'fw-teen-challenge-btn';
+      btn.textContent = TECHNIQUE_NAMES[opt];
+      const color = TECHNIQUE_COLORS[opt];
+      btn.style.cssText = `color: ${color} !important; border-color: ${color}4d !important;`;
+
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        // Disable all buttons after click
+        optionsDiv.querySelectorAll('button').forEach(b => {
+          (b as HTMLButtonElement).disabled = true;
+          b.style.pointerEvents = 'none';
+          b.style.opacity = '0.5';
+        });
+
+        if (opt === pillTechnique) {
+          // Correct!
+          btn.style.opacity = '1';
+          const result = document.createElement('div');
+          result.className = 'fw-teen-challenge-result';
+          result.textContent = '\u2713 Nice catch!';
+          result.style.color = '#66bb6a';
+          challenge.appendChild(result);
+          chrome.runtime.sendMessage({
+            type: 'USER_VERDICT',
+            payload: { postId: neutralized.postId, verdict: 'spotted', mode: 'teen' },
+          }).catch(() => {});
+          setTimeout(() => showAnalysisPanel(challenge), 800);
+        } else {
+          // Wrong
+          const result = document.createElement('div');
+          result.className = 'fw-teen-challenge-result';
+          result.textContent = 'Not quite \u2014 here\u2019s what was detected:';
+          challenge.appendChild(result);
+          setTimeout(() => showAnalysisPanel(challenge), 600);
+        }
+      });
+
+      optionsDiv.appendChild(btn);
+    }
+    challenge.appendChild(optionsDiv);
+
+    // Skip link
+    const skip = document.createElement('a');
+    skip.className = 'fw-teen-challenge-skip';
+    skip.textContent = 'Skip \u2014 show me';
+    skip.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      showAnalysisPanel(challenge);
+    });
+    challenge.appendChild(skip);
+
+    pill.insertAdjacentElement('afterend', challenge);
   });
 
   el.parentElement?.appendChild(pill);

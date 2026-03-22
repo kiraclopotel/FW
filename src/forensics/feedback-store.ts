@@ -7,7 +7,7 @@ const STORE_NAME = 'verdicts';
 
 export interface UserVerdict {
   postId: string;
-  verdict: 'confirmed' | 'disputed';
+  verdict: 'confirmed' | 'disputed' | 'spotted';
   mode: 'child' | 'teen' | 'adult';
   timestamp: string;
 }
