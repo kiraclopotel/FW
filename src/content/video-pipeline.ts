@@ -2,17 +2,17 @@
 // Wires together comment detection, hiding, extraction, AI rewriting, and injection
 // for video-first platforms (YouTube, TikTok, Instagram).
 //
-// CRITICAL SEQUENCE:
-// 1. MutationObserver detects comments container → IMMEDIATELY hide (synchronous, no await)
-// 2. Extract + score comments (async pipeline begins)
-// 3. Based on mode: generate educational content OR rewrite comments
-// 4. Inject overlay
-// Step 1 uses getCachedMode() — synchronous, never async in the observer callback.
+// TWO INDEPENDENT PATHS:
+// Path A (immediate): Metrics hiding + comment posting block → runs on page load
+// Path B (deferred):  Comment replacement/rewriting → runs when comment container appears
+//
+// Path A uses dom-scanner's getDiscoveredMetrics() for robust metric discovery.
+// Path B still uses getCommentsContainer() with getDiscoveredCommentsContainer() as fallback.
 
 import type { Platform } from '../types/post';
 import type { Mode } from '../types/mode';
 import { getSettings } from '../storage/settings';
-import { getCommentsContainer, getMetricElements } from './platforms/metric-selectors';
+import { getCommentsContainer } from './platforms/metric-selectors';
 import { extractComments } from './platforms/comment-extractors';
 import { scoreAndRankComments } from '../analysis/comment-scorer';
 import { generateChildComments, rewriteTeenComments } from '../analysis/comment-rewriter';
@@ -24,15 +24,11 @@ import {
   blockCommentPosting,
 } from './video-comment-injector';
 
-// --- Module-level state ---
+// ─── Module-level state ───
 
-// Cached mode for synchronous access in MutationObserver callback.
-// Defaults to 'child' (safest — hide first, adjust later if settings load reveals adult).
-let cachedMode: Mode = 'child';
-
-// Stale response protection: each pipeline run gets a unique ID.
-// If the user navigates before AI responds, the old result is discarded.
+let cachedMode: Mode = 'child'; // Safest default for synchronous access
 let currentPipelineId = '';
+let metricPollTimer: ReturnType<typeof setInterval> | null = null;
 
 function getCachedMode(): Mode {
   return cachedMode;
@@ -101,9 +97,76 @@ function logScanEvent(
   }
 }
 
-// --- Main pipeline ---
+// ─── Immediate actions (metrics + posting) ───
+// These run ON PAGE LOAD. No dependency on comments existing.
 
-async function runVideoPipeline(
+async function runImmediateActions(platform: Platform): Promise<void> {
+  const settings = await getSettings();
+  const mode = settings.mode;
+  const { videoControls } = settings;
+
+  const shouldHideMetrics =
+    (mode === 'child' && videoControls.childHideMetrics) ||
+    (mode === 'teen' && videoControls.teenHideMetrics) ||
+    (mode === 'adult' && videoControls.adultHideMetrics);
+
+  if (shouldHideMetrics) {
+    // Use the scanner's discovered metrics (falls back to known selectors internally)
+    const { getDiscoveredMetrics } = await import('./platforms/dom-scanner');
+    const elements = getDiscoveredMetrics(platform);
+    if (elements.length > 0) {
+      hideEngagementMetrics(elements);
+      console.log(`[FeelingWise] Hidden ${elements.length} metric elements on ${platform}`);
+    } else {
+      console.log(`[FeelingWise] No metric elements found yet on ${platform}`);
+    }
+  }
+
+  if (mode === 'child' && videoControls.childBlockPosting) {
+    blockCommentPosting(platform);
+  }
+}
+
+// ─── Metric polling ───
+// TikTok/Instagram load new metrics when user swipes/scrolls.
+// Re-check every 2 seconds for new unhidden metrics.
+
+function startMetricPolling(platform: Platform): void {
+  if (metricPollTimer) return; // Already running
+
+  metricPollTimer = setInterval(async () => {
+    try {
+      const settings = await getSettings();
+      const mode = settings.mode;
+      const shouldHide =
+        (mode === 'child' && settings.videoControls.childHideMetrics) ||
+        (mode === 'teen' && settings.videoControls.teenHideMetrics) ||
+        (mode === 'adult' && settings.videoControls.adultHideMetrics);
+
+      if (!shouldHide) return;
+
+      const { getDiscoveredMetrics } = await import('./platforms/dom-scanner');
+      const elements = getDiscoveredMetrics(platform);
+      const unhidden = elements.filter(el => el.dataset.fwMetricHidden !== 'true');
+      if (unhidden.length > 0) {
+        hideEngagementMetrics(unhidden);
+      }
+    } catch {
+      // Non-critical — metric polling failure should never break anything
+    }
+  }, 2000);
+}
+
+function stopMetricPolling(): void {
+  if (metricPollTimer) {
+    clearInterval(metricPollTimer);
+    metricPollTimer = null;
+  }
+}
+
+// ─── Comment pipeline (deferred — runs when comment container appears) ───
+
+async function runCommentPipeline(
   platform: Platform,
   videoTitle: string,
   videoDescription: string,
@@ -116,21 +179,7 @@ async function runVideoPipeline(
   const { videoControls, locale } = settings;
   const language = locale === 'ro' ? 'Romanian' : 'English';
 
-  // Step 5+6: metrics and posting (no dependency on comments, run immediately)
-  const shouldHideMetrics =
-    (mode === 'child' && videoControls.childHideMetrics) ||
-    (mode === 'teen' && videoControls.teenHideMetrics) ||
-    (mode === 'adult' && videoControls.adultHideMetrics);
-
-  if (shouldHideMetrics) {
-    hideEngagementMetrics(getMetricElements(platform));
-  }
-
-  if (mode === 'child' && videoControls.childBlockPosting) {
-    blockCommentPosting(platform);
-  }
-
-  // Step 4a: child hidden mode — container stays hidden from step 1, nothing more to do
+  // Child hidden mode — container stays hidden from hideCommentsImmediately
   if (mode === 'child' && videoControls.childCommentMode === 'hidden') {
     logScanEvent(platform, 'comments-hidden', videoTitle);
     return;
@@ -142,33 +191,26 @@ async function runVideoPipeline(
     return;
   }
 
-  // Step 2: extract + score comments
+  // Extract + score comments
   const rawComments = extractComments(platform);
   const batch = scoreAndRankComments(rawComments, videoControls.commentAnalysisCount);
 
-  // Stale check: user may have navigated away during extraction
-  if (currentPipelineId !== pipelineId) return;
+  if (currentPipelineId !== pipelineId) return; // Stale check
 
-  const container = getCommentsContainer(platform);
+  const { getDiscoveredCommentsContainer } = await import('./platforms/dom-scanner');
+  const container = getCommentsContainer(platform) ?? getDiscoveredCommentsContainer(platform);
   if (!container) {
     logScanEvent(platform, 'pass', videoTitle);
     return;
   }
 
   try {
-    // Step 4b: child educational mode
     if (mode === 'child' && videoControls.childCommentMode === 'educational') {
       const result = await generateChildComments(
-        videoTitle,
-        videoDescription,
-        videoControls.educationalTopics,
-        language,
-        videoControls.commentAnalysisCount,
+        videoTitle, videoDescription, videoControls.educationalTopics,
+        language, videoControls.commentAnalysisCount,
       );
-
-      // Stale check after async AI call
       if (currentPipelineId !== pipelineId) return;
-
       if (result.comments.length > 0) {
         injectChildEducationalOverlay(container, result);
       }
@@ -176,13 +218,9 @@ async function runVideoPipeline(
       return;
     }
 
-    // Step 4c: teen rewrite mode
     if (mode === 'teen' && videoControls.teenRewriteComments && batch.top.length > 0) {
       const result = await rewriteTeenComments(batch.top, videoTitle, language);
-
-      // Stale check after async AI call
       if (currentPipelineId !== pipelineId) return;
-
       if (result.comments.length > 0) {
         injectTeenRewrittenComments(container, result, videoControls.teenShowLessons);
       }
@@ -190,8 +228,8 @@ async function runVideoPipeline(
       return;
     }
   } catch (err) {
-    // On failure, restore container visibility so comments aren't permanently hidden
-    console.error('[FeelingWise] Video pipeline error:', err);
+    console.error('[FeelingWise] Comment pipeline error:', err);
+    // Restore visibility on failure so comments aren't permanently hidden
     container.style.visibility = 'visible';
     container.style.maxHeight = '';
     container.style.overflow = '';
@@ -247,7 +285,7 @@ function setupNavigationListeners(platform: Platform): () => void {
   return () => handlers.forEach(fn => fn());
 }
 
-// --- Init ---
+// ─── Init (entry point) ───
 
 const FALLBACK_POLL_INTERVAL_MS = 2000;
 const FALLBACK_MAX_ATTEMPTS = 10;
@@ -257,65 +295,70 @@ export function initVideoPipeline(platform: Platform): () => void {
   let fallbackTimer: ReturnType<typeof setInterval> | null = null;
   let fallbackAttempts = 0;
 
-  // Load settings and cache mode for synchronous access
+  console.log(`[FeelingWise] Video pipeline initializing for ${platform}`);
+
+  // ═══ PATH A: Immediate actions (don't wait for comments) ═══
   getSettings().then(settings => {
     cachedMode = settings.mode;
+    // Run immediately
+    runImmediateActions(platform);
+    // Start polling for new metrics (catches swipe-to-new-video)
+    startMetricPolling(platform);
   });
 
-  function tryDetectAndProcess(): void {
+  // ═══ PATH B: Comment detection (wait for container to appear) ═══
+  function tryDetectComments(): void {
     const container = getCommentsContainer(platform);
     if (!container) return;
     if (container.dataset.fwProcessed === 'true') return;
 
     container.dataset.fwProcessed = 'true';
+    console.log(`[FeelingWise] Comments container detected on ${platform}`);
 
-    // STEP 1: HIDE IMMEDIATELY (synchronous, no await)
+    // HIDE IMMEDIATELY (synchronous — before any async work)
     const mode = getCachedMode();
     if (mode === 'child' || mode === 'teen') {
       hideCommentsImmediately(container, mode);
     }
 
-    // STEPS 2-7: Run full pipeline (async, container is already hidden)
+    // Run comment pipeline (async — container is already hidden)
     const title = getCurrentVideoTitle(platform);
     const desc = getCurrentVideoDescription(platform);
-    runVideoPipeline(platform, title, desc)
-      .catch(err => console.error('[FeelingWise] Video pipeline error:', err));
+    runCommentPipeline(platform, title, desc)
+      .catch(err => console.error('[FeelingWise] Comment pipeline error:', err));
   }
 
-  // Primary: MutationObserver
   observer = new MutationObserver(() => {
-    tryDetectAndProcess();
+    tryDetectComments();
   });
+  observer.observe(document.body, { childList: true, subtree: true });
 
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-  });
+  // Check if comments already present on load
+  tryDetectComments();
 
-  // Check if container is already present on page load
-  tryDetectAndProcess();
-
-  // Fallback: periodic polling for platforms that load comments late
+  // Fallback polling for late-loading comments
   fallbackTimer = setInterval(() => {
     fallbackAttempts++;
-    tryDetectAndProcess();
+    tryDetectComments();
     if (fallbackAttempts >= FALLBACK_MAX_ATTEMPTS && fallbackTimer !== null) {
       clearInterval(fallbackTimer);
       fallbackTimer = null;
     }
   }, FALLBACK_POLL_INTERVAL_MS);
 
-  // SPA navigation listeners
+  // SPA navigation
   const cleanupNavigation = setupNavigationListeners(platform);
 
-  // On navigation, reset fallback counter so polling restarts for new video
-  const originalOnNavigate = onNavigate;
-  const wrappedHandleNav = () => {
+  const handleNav = () => {
+    onNavigate(platform);
     fallbackAttempts = 0;
+    // Re-run immediate actions for the new video
+    runImmediateActions(platform);
+    // Reset comment fallback polling
     if (!fallbackTimer) {
       fallbackTimer = setInterval(() => {
         fallbackAttempts++;
-        tryDetectAndProcess();
+        tryDetectComments();
         if (fallbackAttempts >= FALLBACK_MAX_ATTEMPTS && fallbackTimer !== null) {
           clearInterval(fallbackTimer);
           fallbackTimer = null;
@@ -324,12 +367,12 @@ export function initVideoPipeline(platform: Platform): () => void {
     }
   };
 
-  // Hook into navigation events to restart polling
   if (platform === 'youtube') {
-    document.addEventListener('yt-navigate-finish', wrappedHandleNav);
+    document.addEventListener('yt-navigate-finish', handleNav);
   }
   if (platform === 'tiktok' || platform === 'instagram') {
-    window.addEventListener('popstate', wrappedHandleNav);
+    window.addEventListener('popstate', handleNav);
+    // URL polling for swipe detection is already handled by setupNavigationListeners
   }
 
   return () => {
@@ -339,12 +382,13 @@ export function initVideoPipeline(platform: Platform): () => void {
       clearInterval(fallbackTimer);
       fallbackTimer = null;
     }
+    stopMetricPolling();
     cleanupNavigation();
     if (platform === 'youtube') {
-      document.removeEventListener('yt-navigate-finish', wrappedHandleNav);
+      document.removeEventListener('yt-navigate-finish', handleNav);
     }
     if (platform === 'tiktok' || platform === 'instagram') {
-      window.removeEventListener('popstate', wrappedHandleNav);
+      window.removeEventListener('popstate', handleNav);
     }
   };
 }

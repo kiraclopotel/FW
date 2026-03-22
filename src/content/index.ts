@@ -46,9 +46,20 @@ function init(): void {
 
   console.log(`[FeelingWise] active on ${platform}`);
 
-  // DOM diagnostic scanner: auto-scan on load and expose __FW_SCAN() for manual console use
-  scanDOM(platform);
-  (window as any).__FW_SCAN = () => scanDOM(platform);
+  // DOM diagnostic — runs once on load, exposes __FW_SCAN() for manual inspection
+  // Auto-scan after a short delay (let platform finish rendering)
+  setTimeout(() => {
+    if (platform) {
+      scanDOM(platform);
+    }
+  }, 3000);
+
+  // Manual scan for debugging: type __FW_SCAN() in DevTools console
+  if (platform) {
+    const p = platform;
+    (window as any).__FW_SCAN = () => scanDOM(p);
+    console.log('[FeelingWise] Type __FW_SCAN() in console to run DOM diagnostic');
+  }
 }
 
 async function onPostDetected(post: PostContent): Promise<void> {
