@@ -1,7 +1,7 @@
 // FeelingWise - Post content types
 // Standardized format produced by platform adapters
 
-export type FeedSource = 'for-you' | 'following' | 'profile' | 'search' | 'unknown';
+export type FeedSource = 'for-you' | 'following' | 'profile' | 'search' | 'video' | 'unknown';
 
 export interface PostContent {
   id: string;

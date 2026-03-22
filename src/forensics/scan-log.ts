@@ -19,7 +19,7 @@ export interface ScanEvent {
   feedSource: FeedSource;
   author: string;
   postId: string;
-  action: 'pass' | 'neutralize' | 'flag';
+  action: 'pass' | 'neutralize' | 'flag' | 'comments-hidden' | 'comments-educational' | 'comments-rewritten';
   // Lightweight: no original text, no hash, no integrity chain
 }
 
@@ -102,7 +102,7 @@ export async function computeScanStats(since?: string): Promise<ScanStats> {
 
   for (const e of events) {
     // Action counts
-    if (e.action === 'neutralize') stats.totalNeutralized++;
+    if (e.action === 'neutralize' || e.action === 'comments-hidden' || e.action === 'comments-educational' || e.action === 'comments-rewritten') stats.totalNeutralized++;
     else if (e.action === 'flag') stats.totalFlagged++;
     else stats.totalPassed++;
 
