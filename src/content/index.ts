@@ -18,13 +18,7 @@ import { ScanEvent } from '../forensics/scan-log';
 import { getSettings } from '../storage/settings';
 import { injectIntoElement } from './injector';
 import { ProcessingQueue } from './queue';
-import {
-  watchForComments,
-  injectChildEducationalOverlay,
-  injectTeenRewrittenComments,
-} from './video-comment-injector';
-import { scoreAndRankComments } from '../analysis/comment-scorer';
-import { generateChildComments, rewriteTeenComments } from '../analysis/comment-rewriter';
+import { initVideoPipeline } from './video-pipeline';
 
 let activeAdapter: PlatformAdapter | null = null;
 let queue: ProcessingQueue | null = null;
@@ -44,41 +38,9 @@ function init(): void {
   const interceptor = new ContentInterceptor(adapter, onPostDetected);
   interceptor.start();
 
-  // Video platforms: watch for comment containers and apply hide-first-populate-later
+  // Video platforms: start the video pipeline (comment hiding, metrics, overlays)
   if (platform === 'youtube' || platform === 'tiktok' || platform === 'instagram') {
-    getSettings().then(settings => {
-      const { mode, locale, videoControls } = settings;
-      const language = locale === 'ro' ? 'Romanian' : 'English';
-
-      watchForComments(platform!, mode, async (container, rawComments) => {
-        try {
-          if (mode === 'child') {
-            const videoTitle = document.title;
-            const result = await generateChildComments(
-              videoTitle,
-              '',
-              videoControls.educationalTopics,
-              language,
-              videoControls.commentAnalysisCount,
-            );
-            injectChildEducationalOverlay(container, result);
-          } else if (mode === 'teen' && videoControls.teenRewriteComments) {
-            const batch = scoreAndRankComments(rawComments);
-            if (batch.top.length > 0) {
-              const videoTitle = document.title;
-              const result = await rewriteTeenComments(batch.top, videoTitle, language);
-              injectTeenRewrittenComments(container, result, videoControls.teenShowLessons);
-            }
-          }
-        } catch (err) {
-          // On failure, restore visibility so comments aren't permanently hidden
-          console.error('[FeelingWise] Comment rewriting failed:', err);
-          container.style.visibility = 'visible';
-          container.style.maxHeight = '';
-          container.style.overflow = '';
-        }
-      });
-    });
+    initVideoPipeline(platform);
   }
 
   console.log(`[FeelingWise] active on ${platform}`);
