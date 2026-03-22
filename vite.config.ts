@@ -1,6 +1,6 @@
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import { readFileSync, writeFileSync, renameSync, existsSync, rmSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, rmSync, mkdirSync, copyFileSync, readdirSync } from 'fs';
 import { resolve, join } from 'path';
 
 /**
@@ -17,7 +17,6 @@ function flattenHtml(): Plugin {
       const nestedDir = join(outDir, 'src', 'ui');
       if (!existsSync(nestedDir)) return;
 
-      const { readdirSync } = require('fs') as typeof import('fs');
       for (const subDir of readdirSync(nestedDir)) {
         const htmlPath = join(nestedDir, subDir, 'index.html');
         if (!existsSync(htmlPath)) continue;
@@ -93,6 +92,36 @@ function chromeExtensionManifest(): Plugin {
   };
 }
 
+/**
+ * Copies assets/icons/ into dist/assets/icons/ so the manifest
+ * icon paths resolve correctly in the built extension.
+ */
+function copyStaticAssets(): Plugin {
+  return {
+    name: 'copy-static-assets',
+    enforce: 'post',
+    writeBundle(options) {
+      const outDir = options.dir!;
+      const srcDir = resolve(__dirname, 'assets', 'icons');
+      const destDir = join(outDir, 'assets', 'icons');
+
+      if (!existsSync(srcDir)) {
+        console.warn('[copy-static-assets] assets/icons/ not found — skipping');
+        return;
+      }
+
+      mkdirSync(destDir, { recursive: true });
+
+      for (const file of readdirSync(srcDir)) {
+        if (file.endsWith('.png')) {
+          copyFileSync(join(srcDir, file), join(destDir, file));
+        }
+      }
+      console.log('[copy-static-assets] Copied icons to dist/assets/icons/');
+    },
+  };
+}
+
 // Two-phase build controlled by BUILD_TARGET env var:
 // 1. Main build (default): HTML pages + service worker (ESM format)
 // 2. Content script build (BUILD_TARGET=content): IIFE, self-contained, no WebLLM
@@ -121,7 +150,7 @@ export default defineConfig(isContentBuild ? {
 } : {
   // --- Main build (ESM - service worker, HTML pages, manifest) ---
   base: '',
-  plugins: [react(), flattenHtml(), chromeExtensionManifest()],
+  plugins: [react(), flattenHtml(), chromeExtensionManifest(), copyStaticAssets()],
   build: {
     outDir: 'dist',
     emptyOutDir: true,
