@@ -6,28 +6,90 @@ import { Platform } from '../types/post';
 import { Mode } from '../types/mode';
 
 export interface PlatformCapability {
-  // Can we rewrite text content? (tweets, reddit posts, 4chan posts)
-  canNeutralizeText: boolean;
-  // Can we suppress/collapse the comments section?
-  canSuppressComments: boolean;
-  // Can we flag/hide video containers based on text proxy signals?
-  canFlagVideo: boolean;
-  // Are auto-generated subtitles/transcripts available in the DOM?
-  hasSubtitles: boolean;
-  // Is the primary content text (vs video/image)?
-  primaryContentIsText: boolean;
+  canNeutralizeText: boolean;       // Can rewrite text content (tweets, reddit posts)
+  canCollapseComments: boolean;     // Can collapse/minimize comment sections
+  canHideMetrics: boolean;          // Can hide like counts, share counts, comment counts
+  canFlagVideoContainer: boolean;   // Can add badges/overlays to video containers
+  canExtractSubtitles: boolean;     // Auto-generated subtitles available in DOM
+  primaryContentIsText: boolean;    // Primary content is text (not video/image)
+  extractionStability: 'high' | 'medium' | 'low';  // How stable is DOM extraction
+  commentLoadMethod: 'dom' | 'lazy' | 'api' | 'none'; // How comments are loaded
 }
 
 export const PLATFORM_CAPABILITIES: Record<Platform, PlatformCapability> = {
-  twitter:   { canNeutralizeText: true,  canSuppressComments: false, canFlagVideo: false, hasSubtitles: false, primaryContentIsText: true  },
-  facebook:  { canNeutralizeText: true,  canSuppressComments: true,  canFlagVideo: true,  hasSubtitles: false, primaryContentIsText: true  },
-  youtube:   { canNeutralizeText: true,  canSuppressComments: true,  canFlagVideo: true,  hasSubtitles: true,  primaryContentIsText: false },
-  tiktok:    { canNeutralizeText: false, canSuppressComments: true,  canFlagVideo: true,  hasSubtitles: false, primaryContentIsText: false },
-  instagram: { canNeutralizeText: false, canSuppressComments: true,  canFlagVideo: true,  hasSubtitles: false, primaryContentIsText: false },
-  reddit:    { canNeutralizeText: true,  canSuppressComments: false, canFlagVideo: false, hasSubtitles: false, primaryContentIsText: true  },
-  '4chan':    { canNeutralizeText: true,  canSuppressComments: false, canFlagVideo: false, hasSubtitles: false, primaryContentIsText: true  },
+  twitter: {
+    canNeutralizeText: true,
+    canCollapseComments: false,
+    canHideMetrics: false,
+    canFlagVideoContainer: false,
+    canExtractSubtitles: false,
+    primaryContentIsText: true,
+    extractionStability: 'high',
+    commentLoadMethod: 'dom',
+  },
+  facebook: {
+    canNeutralizeText: true,
+    canCollapseComments: true,
+    canHideMetrics: true,
+    canFlagVideoContainer: true,
+    canExtractSubtitles: false,
+    primaryContentIsText: true,
+    extractionStability: 'medium',
+    commentLoadMethod: 'lazy',
+  },
+  youtube: {
+    canNeutralizeText: true,       // Comments, descriptions
+    canCollapseComments: true,
+    canHideMetrics: true,          // Like count, view count, sub count
+    canFlagVideoContainer: true,
+    canExtractSubtitles: true,     // ytInitialPlayerResponse.captions
+    primaryContentIsText: false,
+    extractionStability: 'high',   // Polymer components, stable IDs
+    commentLoadMethod: 'lazy',     // Continuation tokens via youtubei/v1/next
+  },
+  tiktok: {
+    canNeutralizeText: false,      // Captions too short/integrated
+    canCollapseComments: true,
+    canHideMetrics: true,          // Like, comment, share counts
+    canFlagVideoContainer: true,
+    canExtractSubtitles: false,
+    primaryContentIsText: false,
+    extractionStability: 'medium', // Hydration JSON stable; CSS classes fragile
+    commentLoadMethod: 'api',      // /api/comment/list/ triggered by scroll
+  },
+  instagram: {
+    canNeutralizeText: false,
+    canCollapseComments: true,
+    canHideMetrics: true,
+    canFlagVideoContainer: true,
+    canExtractSubtitles: false,
+    primaryContentIsText: false,
+    extractionStability: 'low',    // Obfuscated classes rotate every deploy
+    commentLoadMethod: 'lazy',
+  },
+  reddit: {
+    canNeutralizeText: true,
+    canCollapseComments: false,
+    canHideMetrics: false,
+    canFlagVideoContainer: false,
+    canExtractSubtitles: false,
+    primaryContentIsText: true,
+    extractionStability: 'high',
+    commentLoadMethod: 'dom',
+  },
+  '4chan': {
+    canNeutralizeText: true,
+    canCollapseComments: false,
+    canHideMetrics: false,
+    canFlagVideoContainer: false,
+    canExtractSubtitles: false,
+    primaryContentIsText: true,
+    extractionStability: 'high',
+    commentLoadMethod: 'dom',
+  },
 };
 
+// Legacy re-exports for backward compatibility with existing pipeline
 export type PlatformAction =
   | 'neutralize'        // Rewrite text (text-first platforms)
   | 'flag'              // Show indicator, don't modify (adult mode on text platforms)
@@ -65,8 +127,8 @@ export function decidePlatformAction(
   switch (mode) {
     case 'child':
       // Suppress comments entirely + flag video if text signals are severe
-      if (cap.canSuppressComments && manipulativeCommentCount >= 2) return 'suppress-comments';
-      if (cap.canFlagVideo && hasManipulativeText) return 'flag-video';
+      if (cap.canCollapseComments && manipulativeCommentCount >= 2) return 'suppress-comments';
+      if (cap.canFlagVideoContainer && hasManipulativeText) return 'flag-video';
       return 'pass';
 
     case 'teen':
