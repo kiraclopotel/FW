@@ -151,6 +151,11 @@ function startMetricPolling(platform: Platform): void {
       if (unhidden.length > 0) {
         hideEngagementMetrics(unhidden);
       }
+
+      // Also re-check comment input blocking (comment panel may have appeared)
+      if (mode === 'child' && settings.videoControls.childBlockPosting) {
+        blockCommentPosting(platform);
+      }
     } catch {
       // Non-critical — metric polling failure should never break anything
     }
@@ -206,8 +211,22 @@ async function runCommentPipeline(
 
   try {
     if (mode === 'child' && videoControls.childCommentMode === 'educational') {
+      // On TikTok, the caption IS the description (getCurrentVideoDescription returns '')
+      const desc = platform === 'tiktok' ? videoTitle : videoDescription;
+
+      // Extract a few actual comments for topic context (not for manipulation detection)
+      const sampleTexts = rawComments
+        .slice(0, 5)
+        .map(c => c.text)
+        .filter(t => t.length > 10 && t.length < 200)
+        .join('; ');
+
+      const contextDesc = sampleTexts
+        ? `${desc}\n\nSample discussion topics: ${sampleTexts}`
+        : desc;
+
       const result = await generateChildComments(
-        videoTitle, videoDescription, videoControls.educationalTopics,
+        videoTitle, contextDesc, videoControls.educationalTopics,
         language, videoControls.commentAnalysisCount,
       );
       if (currentPipelineId !== pipelineId) return;
@@ -242,14 +261,15 @@ async function runCommentPipeline(
 // --- SPA navigation handling ---
 
 function onNavigate(platform: Platform): void {
-  // Remove any injected overlays from previous video
-  document.querySelectorAll('.fw-overlay, .fw-comments-placeholder').forEach(el => el.remove());
+  // Remove any injected overlays from previous video (both old and new class names)
+  document.querySelectorAll('.fw-overlay, .fw-comment-overlay, .fw-comments-placeholder').forEach(el => el.remove());
 
   // Reset processing flags on comment containers so MutationObserver re-detects
   const container = getCommentsContainer(platform);
   if (container) {
     delete container.dataset.fwProcessed;
     delete container.dataset.fwHidden;
+    container.removeAttribute('data-fw-comment-container');
     container.style.visibility = '';
     container.style.maxHeight = '';
     container.style.overflow = '';
@@ -319,6 +339,15 @@ export function initVideoPipeline(platform: Platform): () => void {
     const mode = getCachedMode();
     if (mode === 'child' || mode === 'teen') {
       hideCommentsImmediately(container, mode);
+    }
+
+    // Block comment posting NOW that the comment panel exists
+    if (mode === 'child') {
+      getSettings().then(settings => {
+        if (settings.videoControls.childBlockPosting) {
+          blockCommentPosting(platform);
+        }
+      });
     }
 
     // Run comment pipeline (async — container is already hidden)

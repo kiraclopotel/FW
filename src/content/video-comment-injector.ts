@@ -68,14 +68,15 @@ function createPlaceholder(mode: 'child' | 'teen'): HTMLElement {
 // --- Hide comments immediately ---
 
 /**
- * Prepare comments container for FeelingWise overlay.
+ * Hide comments and inject overlay using CSS injection.
  *
- * CRITICAL: Do NOT hide the container itself (visibility, maxHeight, etc.).
- * TikTok's React detects container hiding via internal observers and triggers
- * a "comments_off" error state that darkens the video.
+ * WHY CSS INJECTION: TikTok/Instagram are React apps. Setting
+ * `element.style.display = 'none'` on React-managed elements gets
+ * undone on the next render cycle. A <style> tag in <head> persists
+ * because React doesn't manage <head>.
  *
- * Instead: hide individual children and inject our placeholder AS a child.
- * The container stays visible and sized → TikTok's observers don't fire.
+ * We assign a unique CSS class to the container, then use a <style>
+ * rule to hide all its REAL children (not our overlay).
  */
 export function hideCommentsImmediately(
   commentsContainer: HTMLElement,
@@ -85,26 +86,60 @@ export function hideCommentsImmediately(
   if (commentsContainer.dataset.fwHidden === 'true') return;
   commentsContainer.dataset.fwHidden = 'true';
 
-  // Hide each individual child element (not the container!)
-  for (const child of Array.from(commentsContainer.children)) {
-    if (child instanceof HTMLElement && !child.classList.contains('fw-overlay')) {
-      child.style.display = 'none';
-    }
-  }
+  // Mark the container with a unique attribute for CSS targeting
+  commentsContainer.setAttribute('data-fw-comment-container', 'true');
 
-  // Insert a loading placeholder as a child of the container
+  // Inject a <style> rule that hides all children EXCEPT our overlay
+  // This persists across React re-renders because it's in <head>
+  injectCommentHidingCSS();
+
+  // Insert a loading placeholder OUTSIDE the container (as a sibling)
+  // so React can't remove it when it re-renders the container's children
   const placeholder = createPlaceholder(mode);
-  commentsContainer.appendChild(placeholder);
+  placeholder.classList.add('fw-comment-overlay');
+  commentsContainer.insertAdjacentElement('afterend', placeholder);
+
+  // MutationObserver to maintain hiding if React removes the data attribute
+  const observer = new MutationObserver(() => {
+    if (!commentsContainer.hasAttribute('data-fw-comment-container')) {
+      commentsContainer.setAttribute('data-fw-comment-container', 'true');
+    }
+  });
+  observer.observe(commentsContainer, { attributes: true, childList: true });
+}
+
+let commentCSSInjected = false;
+
+function injectCommentHidingCSS(): void {
+  if (commentCSSInjected) return;
+  commentCSSInjected = true;
+
+  const style = document.createElement('style');
+  style.id = 'fw-comment-hiding-css';
+  style.textContent = `
+    /* Hide all real children of the comment container */
+    [data-fw-comment-container="true"] > *:not(.fw-overlay):not(.fw-comment-overlay) {
+      display: none !important;
+    }
+    /* But keep the container itself visible (TikTok React detection) */
+    [data-fw-comment-container="true"] {
+      min-height: 100px;
+    }
+  `;
+  document.head.appendChild(style);
 }
 
 // --- Remove placeholder helper ---
 
 function removePlaceholder(commentsContainer: HTMLElement): void {
-  // Placeholder is now a child of the container (not a sibling)
-  const placeholder = commentsContainer.querySelector('.fw-comments-placeholder');
-  if (placeholder) {
-    placeholder.remove();
-  }
+  // Placeholder is now a SIBLING (inserted via insertAdjacentElement('afterend'))
+  const placeholder = commentsContainer.parentElement?.querySelector(
+    '.fw-comment-overlay.fw-comments-placeholder, .fw-comments-placeholder'
+  );
+  if (placeholder) placeholder.remove();
+  // Also check for old-style child placeholder (backward compat)
+  const childPlaceholder = commentsContainer.querySelector('.fw-comments-placeholder');
+  if (childPlaceholder) childPlaceholder.remove();
 }
 
 // --- Restore container visibility ---
@@ -115,29 +150,23 @@ function restoreVisibility(commentsContainer: HTMLElement): void {
   commentsContainer.style.overflow = '';
 }
 
-// --- Hide real comment children ---
-
-function hideRealChildren(container: HTMLElement): void {
-  for (const child of Array.from(container.children)) {
-    if (!(child as HTMLElement).classList?.contains('fw-overlay')) {
-      (child as HTMLElement).style.display = 'none';
-    }
-  }
-}
-
 // --- Child mode: educational overlay ---
 
 export function injectChildEducationalOverlay(
   commentsContainer: HTMLElement,
   result: CommentRewriteResult,
 ): void {
+  // Remove the loading placeholder (it's a sibling now, not a child)
   removePlaceholder(commentsContainer);
-  hideRealChildren(commentsContainer);
+
+  // Remove any previous overlay
+  const prev = commentsContainer.parentElement?.querySelector('.fw-comment-overlay');
+  if (prev) prev.remove();
 
   const fontSize = getPlatformFontSize();
 
   const overlay = document.createElement('div');
-  overlay.className = 'fw-overlay';
+  overlay.className = 'fw-comment-overlay';
   overlay.style.cssText = `
     padding: 16px;
     display: flex;
@@ -195,7 +224,8 @@ export function injectChildEducationalOverlay(
     overlay.appendChild(card);
   }
 
-  commentsContainer.appendChild(overlay);
+  // KEY CHANGE: Insert as sibling AFTER container, not as child
+  commentsContainer.insertAdjacentElement('afterend', overlay);
 }
 
 // --- Teen mode: rewritten comments with toggles ---
@@ -205,13 +235,17 @@ export function injectTeenRewrittenComments(
   result: CommentRewriteResult,
   showLessons: boolean,
 ): void {
+  // Remove the loading placeholder (it's a sibling now)
   removePlaceholder(commentsContainer);
-  hideRealChildren(commentsContainer);
+
+  // Remove any previous overlay
+  const prev = commentsContainer.parentElement?.querySelector('.fw-comment-overlay');
+  if (prev) prev.remove();
 
   const fontSize = getPlatformFontSize();
 
   const overlay = document.createElement('div');
-  overlay.className = 'fw-overlay';
+  overlay.className = 'fw-comment-overlay';
   overlay.style.cssText = `
     padding: 16px;
     display: flex;
@@ -387,7 +421,8 @@ export function injectTeenRewrittenComments(
     overlay.appendChild(card);
   }
 
-  commentsContainer.appendChild(overlay);
+  // KEY CHANGE: Insert as sibling AFTER container, not as child
+  commentsContainer.insertAdjacentElement('afterend', overlay);
 }
 
 // --- Hide engagement metrics ---
@@ -444,7 +479,7 @@ export function blockCommentPosting(platform: string): void {
     } catch { /* invalid selector — skip */ }
   }
 
-  // Structural fallback: find any input-like element with comment-related text
+  // Structural fallback 1: find any input-like element with comment-related text
   if (!found) {
     const editables = document.querySelectorAll<HTMLElement>(
       '[contenteditable="true"], textarea, input[type="text"]'
@@ -466,7 +501,72 @@ export function blockCommentPosting(platform: string): void {
     }
   }
 
+  // Structural fallback 2: find element containing comment-related text.
+  // TikTok's input bar isn't a standard input — it's a div with visible text.
+  // Walk elements looking for one with comment-prompt text, then hide its
+  // nearest container that looks like an input bar (full-width, short height).
+  if (!found) {
+    const allElements = document.querySelectorAll<HTMLElement>('div, span, p');
+    for (const el of allElements) {
+      if (el.dataset.fwPostBlocked === 'true') continue;
+      const directText = getDirectText(el).toLowerCase();
+      if (!directText) continue;
+      if (!/adaugă.*comentariu|add.*comment|comentează|write.*comment/i.test(directText)) continue;
+
+      // Walk UP to find a container that spans the full width (the input bar)
+      let target: HTMLElement = el;
+      let parent = el.parentElement;
+      while (parent && parent !== document.body) {
+        const rect = parent.getBoundingClientRect();
+        // Input bar is typically full-width or near-full-width
+        if (rect.width > window.innerWidth * 0.6) {
+          // Check if this parent is reasonably small (not the entire comment panel)
+          if (rect.height < 80) {
+            target = parent;
+            break;
+          }
+        }
+        parent = parent.parentElement;
+      }
+
+      target.style.display = 'none';
+      target.dataset.fwPostBlocked = 'true';
+      found = true;
+      console.log(`[FeelingWise] Comment input blocked via text discovery: "${directText.slice(0, 40)}"`);
+      break;
+    }
+  }
+
+  // CSS injection fallback — hide via persistent CSS rule.
+  // Even if React re-renders and removes inline styles, the CSS rule persists.
   if (found) {
+    injectCommentInputHidingCSS();
     console.log(`[FeelingWise] Comment posting blocked on ${platform}`);
   }
+}
+
+function getDirectText(el: HTMLElement): string {
+  let text = '';
+  for (const node of el.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      text += node.textContent ?? '';
+    }
+  }
+  return text.trim();
+}
+
+let inputCSSInjected = false;
+
+function injectCommentInputHidingCSS(): void {
+  if (inputCSSInjected) return;
+  inputCSSInjected = true;
+
+  const style = document.createElement('style');
+  style.id = 'fw-input-hiding-css';
+  style.textContent = `
+    [data-fw-post-blocked="true"] {
+      display: none !important;
+    }
+  `;
+  document.head.appendChild(style);
 }

@@ -64,6 +64,19 @@ function init(): void {
 
 async function onPostDetected(post: PostContent): Promise<void> {
   if (!queue) return;
+
+  // Child mode on video platforms: the video pipeline handles ALL protection
+  // (metric hiding, comment replacement, input blocking).
+  // Text caption scanning adds zero value — it costs API calls and produces
+  // no visible neutralization because the child sees educational content, not comments.
+  const isVideoPlatform = post.platform === 'tiktok' || post.platform === 'youtube' || post.platform === 'instagram';
+  if (isVideoPlatform) {
+    const settings = await getSettings();
+    if (settings.mode === 'child') {
+      return;
+    }
+  }
+
   const el = post.domRef.deref();
   const isVisible = el ? isInViewport(el) : false;
   queue.enqueue(post, isVisible);
