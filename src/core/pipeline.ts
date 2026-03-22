@@ -12,10 +12,13 @@ import { getSettings } from '../storage/settings';
 import { getAuthorProfile, getSuspicionBoost } from '../forensics/author-store';
 import { processingCache } from '../storage/cache';
 import { sha256 } from '../forensics/hasher';
+import { getLastCallMeta } from '../ai/client';
 
 export interface PipelineResult {
   action: 'pass' | 'neutralize' | 'flag';
   neutralized?: NeutralizedContent;
+  aiMeta?: { model: string; provider: string };
+  detectionMode?: string;
 }
 
 const PASS: PipelineResult = { action: 'pass' };
@@ -119,6 +122,7 @@ export async function process(post: PostContent): Promise<PipelineResult> {
     // Step 4: SINGLE AI CALL — detect + neutralize combined
     // This eliminates the second API round-trip, cutting latency ~50%
     const result = await combinedDetectAndNeutralize(post.text, techniques, romanian);
+    const aiMeta = getLastCallMeta() ?? undefined;
 
     if (!result) {
       console.log(`[FeelingWise] Pipeline: PASS (AI call failed)`);
@@ -184,11 +188,11 @@ export async function process(post: PostContent): Promise<PipelineResult> {
     // Adult mode: flag only (show indicator, don't replace text)
     if (settings.mode === 'adult') {
       console.log(`[FeelingWise] Pipeline: FLAG (${totalMs.toFixed(0)}ms)`);
-      return { action: 'flag', neutralized };
+      return { action: 'flag', neutralized, aiMeta, detectionMode: 'combined-detect-neutralize' };
     }
 
     console.log(`[FeelingWise] Pipeline: NEUTRALIZE (${totalMs.toFixed(0)}ms)`);
-    return { action: 'neutralize', neutralized };
+    return { action: 'neutralize', neutralized, aiMeta, detectionMode: 'combined-detect-neutralize' };
   } catch (err) {
     // CARDINAL RULE: any exception → PASS
     console.error('[FeelingWise] Pipeline error:', err);

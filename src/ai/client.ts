@@ -5,6 +5,9 @@ import { getSettings, incrementChecks, consumeCredits, trackTokenUsage } from '.
 
 let notifiedConnected = false;
 
+let lastCallMeta: { model: string; provider: string } | null = null;
+export function getLastCallMeta() { return lastCallMeta; }
+
 export async function callAI(system: string, user: string, fastMode = true): Promise<string> {
   const settings = await getSettings();
 
@@ -79,9 +82,15 @@ async function callAnthropic(system: string, user: string, apiKey: string, fast:
       await trackTokenUsage(data.usage.input_tokens || 0, data.usage.output_tokens || 0, 'anthropic');
     }
     const text = data.content?.[0]?.text ?? '';
-    if (text) await incrementChecks();
+    if (text) {
+      await incrementChecks();
+      lastCallMeta = { model, provider: 'anthropic' };
+    } else {
+      lastCallMeta = null;
+    }
     return text;
   } catch {
+    lastCallMeta = null;
     return '';
   }
 }
@@ -115,9 +124,15 @@ async function callOpenAI(system: string, user: string, apiKey: string, fast: bo
       await trackTokenUsage(data.usage.prompt_tokens || 0, data.usage.completion_tokens || 0, 'openai');
     }
     const text = data.choices?.[0]?.message?.content ?? '';
-    if (text) await incrementChecks();
+    if (text) {
+      await incrementChecks();
+      lastCallMeta = { model, provider: 'openai' };
+    } else {
+      lastCallMeta = null;
+    }
     return text;
   } catch {
+    lastCallMeta = null;
     return '';
   }
 }
@@ -152,9 +167,15 @@ async function callDeepSeek(system: string, user: string, apiKey: string, fast: 
       await trackTokenUsage(data.usage.prompt_tokens || 0, data.usage.completion_tokens || 0, 'deepseek');
     }
     const text = data.choices?.[0]?.message?.content ?? '';
-    if (text) await incrementChecks();
+    if (text) {
+      await incrementChecks();
+      lastCallMeta = { model, provider: 'deepseek' };
+    } else {
+      lastCallMeta = null;
+    }
     return text;
   } catch {
+    lastCallMeta = null;
     return '';
   }
 }
@@ -185,9 +206,15 @@ async function callGemini(system: string, user: string, apiKey: string, fast: bo
       await trackTokenUsage(data.usageMetadata.promptTokenCount || 0, data.usageMetadata.candidatesTokenCount || 0, 'gemini');
     }
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-    if (text) await incrementChecks();
+    if (text) {
+      await incrementChecks();
+      lastCallMeta = { model, provider: 'gemini' };
+    } else {
+      lastCallMeta = null;
+    }
     return text;
   } catch {
+    lastCallMeta = null;
     return '';
   }
 }

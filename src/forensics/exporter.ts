@@ -30,7 +30,7 @@ function escapeCSV(value: string): string {
 }
 
 export function exportCSV(records: ForensicRecord[]): void {
-  const header = 'timestamp,platform,author,post_url,techniques,severity,original_length,original_text,neutralized_text';
+  const header = 'timestamp,platform,author,post_url,techniques,severity,original_length,original_text,neutralized_text,ai_model,ai_provider,detection_mode,config_mode,config_threshold,config_daily_cap';
   const rows = records.map(r => {
     const techniques = r.techniques.map(t => t.name).join(';');
     return [
@@ -43,6 +43,12 @@ export function exportCSV(records: ForensicRecord[]): void {
       escapeCSV(String(r.originalLength)),
       escapeCSV(r.originalText),
       escapeCSV(r.neutralizedText),
+      escapeCSV(r.aiModel ?? ''),
+      escapeCSV(r.aiProvider ?? ''),
+      escapeCSV(r.detectionMode ?? ''),
+      escapeCSV(r.configSnapshot?.mode ?? ''),
+      escapeCSV(r.configSnapshot ? String(r.configSnapshot.threshold) : ''),
+      escapeCSV(r.configSnapshot ? String(r.configSnapshot.dailyCap) : ''),
     ].join(',');
   });
 

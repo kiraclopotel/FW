@@ -17,5 +17,9 @@ export interface ForensicRecord {
   userAgeCategory: 'child' | 'teen' | 'adult';
   aiSource: 'local' | 'cloud';
   feedSource: FeedSource;
+  aiModel?: string;
+  aiProvider?: string;
+  detectionMode?: string;
+  configSnapshot?: { mode: string; threshold: number; dailyCap: number };
   integrityHash: string;
 }
