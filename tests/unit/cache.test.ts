@@ -38,9 +38,9 @@ describe('ProcessingCache', () => {
     const analysis = makeAnalysis();
     processingCache.set('hash-old', analysis, 'text');
 
-    // Advance time past 30 minutes
+    // Advance time past 60 minutes
     const realNow = Date.now;
-    Date.now = () => realNow() + 31 * 60 * 1000;
+    Date.now = () => realNow() + 61 * 60 * 1000;
 
     expect(processingCache.get('hash-old')).toBeNull();
     expect(processingCache.size).toBe(0);
@@ -51,15 +51,15 @@ describe('ProcessingCache', () => {
   it('evicts oldest entry when at capacity', () => {
     const analysis = makeAnalysis();
 
-    // Fill to capacity (500)
-    for (let i = 0; i < 500; i++) {
+    // Fill to capacity (5000)
+    for (let i = 0; i < 5000; i++) {
       processingCache.set(`hash-${i}`, analysis, null);
     }
-    expect(processingCache.size).toBe(500);
+    expect(processingCache.size).toBe(5000);
 
     // Adding one more should evict the first
     processingCache.set('hash-new', analysis, null);
-    expect(processingCache.size).toBe(500);
+    expect(processingCache.size).toBe(5000);
     expect(processingCache.get('hash-0')).toBeNull();
     expect(processingCache.get('hash-new')).not.toBeNull();
   });
@@ -68,7 +68,7 @@ describe('ProcessingCache', () => {
     const analysis = makeAnalysis();
 
     // Fill to capacity
-    for (let i = 0; i < 500; i++) {
+    for (let i = 0; i < 5000; i++) {
       processingCache.set(`hash-${i}`, analysis, null);
     }
 
@@ -104,7 +104,7 @@ describe('ProcessingCache', () => {
     processingCache.set('hash-exp', analysis, null);
 
     const realNow = Date.now;
-    Date.now = () => realNow() + 31 * 60 * 1000;
+    Date.now = () => realNow() + 61 * 60 * 1000;
 
     expect(processingCache.has('hash-exp')).toBe(false);
 

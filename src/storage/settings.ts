@@ -55,7 +55,7 @@ const DEFAULTS: FWSettings = {
   geminiApiKey: '',
   managedCredits: 0,
   parentPin: '',
-  dailyCap: 200,
+  dailyCap: 5000,
   deepScanEnabled: false,
   locale: 'en',
   totalChecksToday: 0,
@@ -132,7 +132,7 @@ export async function trackTokenUsage(inputTokens: number, outputTokens: number,
 
   // Approximate cost per 1M tokens (in USD cents) — input/output averaged
   const costPer1M: Record<string, number> = {
-    'deepseek': 14,   // ~$0.14/1M tokens (DeepSeek chat)
+    'deepseek': 8,     // ~$0.08/1M (89% cache hits at $0.028/1M + 11% misses at $0.28/1M)
     'anthropic': 80,   // ~$0.80/1M tokens (Haiku average)
     'openai': 15,      // ~$0.15/1M tokens (GPT-4o-mini average)
     'gemini': 10,      // ~$0.10/1M tokens (Flash average)

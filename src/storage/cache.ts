@@ -11,8 +11,8 @@ interface CacheEntry {
   timestamp: number;
 }
 
-const MAX_ENTRIES = 500;
-const MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
+const MAX_ENTRIES = 5000;
+const MAX_AGE_MS = 60 * 60 * 1000; // 60 minutes
 
 class ProcessingCache {
   private cache = new Map<string, CacheEntry>();

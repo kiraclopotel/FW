@@ -602,8 +602,8 @@ function MainScreen({ settings, update, onSettings, onDashboard, onModeChange }:
         <input
           type="range"
           min={0}
-          max={500}
-          step={50}
+          max={10000}
+          step={500}
           value={settings.dailyCap}
           onChange={e => update({ dailyCap: Number(e.target.value) })}
           style={{ width: '100%', accentColor: C.teal }}
