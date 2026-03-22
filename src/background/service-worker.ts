@@ -56,5 +56,13 @@ chrome.runtime.onMessage.addListener((message: { type: string; payload?: any }, 
     console.log('[FeelingWise] Side panel requested');
   }
 
+  // Return true for async handlers (IndexedDB writes) to keep the message channel
+  // open long enough for the async work to complete. No sendResponse needed —
+  // content scripts don't await a response; returning true just prevents Chrome
+  // from closing the port prematurely.
+  if (message.type === 'FORENSIC_LOG' || message.type === 'USER_VERDICT' || message.type === 'AUTHOR_UPDATE') {
+    return true;
+  }
+
   return false;
 });
