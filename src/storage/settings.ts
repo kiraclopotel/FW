@@ -1,6 +1,7 @@
 // FeelingWise - User settings (chrome.storage.local)
 
 import { Mode } from '../types/mode';
+import { sha256 } from '../forensics/hasher';
 
 export interface FWSettings {
   mode: Mode;
@@ -12,6 +13,9 @@ export interface FWSettings {
   deepSeekApiKey: string;
   geminiApiKey: string;
   managedCredits: number;
+
+  // Parent PIN (SHA-256 hash, '' = no PIN set)
+  parentPin: string;
 
   // Usage controls
   dailyCap: number;
@@ -37,7 +41,7 @@ export interface FWSettings {
 const SETTINGS_KEYS: (keyof FWSettings)[] = [
   'mode', 'apiProvider',
   'anthropicApiKey', 'openaiApiKey', 'deepSeekApiKey', 'geminiApiKey',
-  'managedCredits', 'dailyCap', 'deepScanEnabled', 'locale',
+  'managedCredits', 'parentPin', 'dailyCap', 'deepScanEnabled', 'locale',
   'totalChecksToday', 'totalNeutralizedToday', 'totalTokensToday', 'estimatedCostToday', 'lastResetDate',
   'totalTokensAllTime', 'totalChecksAllTime', 'totalNeutralizedAllTime', 'estimatedCostAllTime',
 ];
@@ -50,6 +54,7 @@ const DEFAULTS: FWSettings = {
   deepSeekApiKey: '',
   geminiApiKey: '',
   managedCredits: 0,
+  parentPin: '',
   dailyCap: 200,
   deepScanEnabled: false,
   locale: 'en',
@@ -171,6 +176,18 @@ export async function validateApiKey(): Promise<{ valid: boolean; provider: stri
   } catch {
     return { valid: false, provider: 'unknown' };
   }
+}
+
+export async function verifyPin(pin: string): Promise<boolean> {
+  const settings = await getSettings();
+  if (!settings.parentPin) return false;
+  const hash = await sha256(pin);
+  return hash === settings.parentPin;
+}
+
+export async function setPin(pin: string): Promise<void> {
+  const hash = await sha256(pin);
+  await chrome.storage.local.set({ parentPin: hash });
 }
 
 export async function consumeCredits(amount: number): Promise<boolean> {
