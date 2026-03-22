@@ -1,7 +1,7 @@
 // FeelingWise - Neutralization Engine
 // Now supports combined detect+neutralize in a single AI call for speed.
 
-import { TechniqueResult, AnalysisResult } from '../types/analysis';
+import { TechniqueResult, AnalysisResult, TechniqueName } from '../types/analysis';
 import { NeutralizedContent } from '../types/neutralization';
 import {
   NEUTRALIZATION_SYSTEM,
@@ -13,6 +13,13 @@ import {
 import { callAI } from '../ai/client';
 import { sha256 } from '../forensics/hasher';
 import { aggregateSeverity } from './severity';
+
+/** All technique names recognised by the downstream injector / UI. */
+const VALID_TECHNIQUES: Set<string> = new Set<string>([
+  'fear-appeal', 'anger-trigger', 'shame-attack', 'false-urgency',
+  'bandwagon', 'scapegoating', 'fomo', 'toxic-positivity',
+  'misleading-format', 'combined',
+] satisfies TechniqueName[]);
 
 // Relaxed forbidden words: only reject if the rewrite contains meta-commentary
 // about manipulation techniques (the AI explaining itself instead of rewriting).
@@ -124,7 +131,7 @@ export async function combinedDetectAndNeutralize(
 
     const processingTimeMs = performance.now() - startTime;
 
-    // Build analysis result
+    // Build analysis result — safe: maps against existing L1 technique names only
     const verified: TechniqueResult[] = techniques.map(t => {
       const aiTechnique = response.techniques?.find(at => at.name === t.technique);
       if (!aiTechnique) return { ...t, present: false, confidence: 0 };
@@ -144,6 +151,7 @@ export async function combinedDetectAndNeutralize(
     if (response.techniques) {
       for (const aiT of response.techniques) {
         if (aiT.verdict !== 'CONFIRMED') continue;
+        if (!VALID_TECHNIQUES.has(aiT.name)) continue;
         const exists = verified.some(t => t.technique === aiT.name);
         if (!exists) {
           verified.push({

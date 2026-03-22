@@ -1,9 +1,16 @@
 // FeelingWise - Layer 2: AI Semantic Verification
 
-import { TechniqueResult, AnalysisResult } from '../types/analysis';
+import { TechniqueResult, AnalysisResult, TechniqueName } from '../types/analysis';
 import { LAYER2_VERIFICATION_SYSTEM, LAYER2_VERIFICATION_USER_TEMPLATE, LAYER2_ROMANIAN_USER_TEMPLATE, SAMPLED_DETECTION_SYSTEM, SAMPLED_DETECTION_USER_TEMPLATE } from '../ai/prompts';
 import { callAI } from '../ai/client';
 import { aggregateSeverity } from './severity';
+
+/** All technique names recognised by the downstream injector / UI. */
+const VALID_TECHNIQUES: Set<string> = new Set<string>([
+  'fear-appeal', 'anger-trigger', 'shame-attack', 'false-urgency',
+  'bandwagon', 'scapegoating', 'fomo', 'toxic-positivity',
+  'misleading-format', 'combined',
+] satisfies TechniqueName[]);
 
 interface VerificationVerdict {
   name: string;
@@ -115,6 +122,7 @@ export async function verifyWithContext(
       // Mark techniques the AI confirmed as present
       if (response.techniques) {
         for (const aiTechnique of response.techniques) {
+          if (!VALID_TECHNIQUES.has(aiTechnique.name)) continue;
           const idx = verified.findIndex(t => t.technique === aiTechnique.name);
           if (idx !== -1 && aiTechnique.verdict === 'CONFIRMED') {
             verified[idx] = {
