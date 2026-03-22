@@ -67,7 +67,27 @@ function extractYouTubeComments(): RawComment[] {
 // --- TikTok ---
 
 function extractTikTokComments(): RawComment[] {
-  const container = document.querySelector<HTMLElement>('[data-e2e="comment-list"]');
+  // Try known selector first
+  let container = document.querySelector<HTMLElement>('[data-e2e="comment-list"]');
+
+  // Structural fallback: find UL with comment-like children
+  if (!container) {
+    const allULs = document.querySelectorAll<HTMLElement>('ul');
+    for (const ul of allULs) {
+      if (ul.children.length < 2) continue;
+      let commentLike = 0;
+      for (const child of Array.from(ul.children).slice(0, 5)) {
+        if (child instanceof HTMLElement && child.querySelector('a[href*="/@"]')) {
+          commentLike++;
+        }
+      }
+      if (commentLike >= 2) {
+        container = ul;
+        break;
+      }
+    }
+  }
+
   if (!container) return [];
 
   const children = Array.from(container.children) as HTMLElement[];

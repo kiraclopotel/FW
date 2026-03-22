@@ -65,11 +65,15 @@ const KNOWN_SELECTORS: Record<string, Record<string, string[]>> = {
     ],
     comments: [
       '[data-e2e="comment-list"]',
-      '[class*="CommentListContainer"]',
+      'div[class*="Comment"] > ul',
+      'div[class*="comment"] > ul',
     ],
     input: [
       '[data-e2e="comment-input"]',
-      'div[contenteditable="true"]',
+      '[placeholder*="comentariu" i]',
+      '[placeholder*="comment" i]',
+      '[data-e2e="comment-bottom"] [contenteditable]',
+      'div[class*="InputContainer"] [contenteditable]',
     ],
   },
   youtube: {
@@ -91,6 +95,7 @@ const KNOWN_SELECTORS: Record<string, Record<string, string[]>> = {
     input: [
       'textarea[aria-label*="comment" i]',
       'textarea[placeholder*="comment" i]',
+      'textarea[placeholder*="comentariu" i]',
     ],
   },
 };
@@ -145,6 +150,9 @@ function discoverMetricElements(): MetricScanResult[] {
 
     // Skip if inside video player controls (progress bar, time display)
     if (isInsideVideoPlayer(el)) continue;
+
+    // Skip nav bar elements (TikTok notification counts, etc.)
+    if (isInsideNavigation(el)) continue;
 
     seen.add(el);
 
@@ -214,6 +222,27 @@ function isInsideVideoPlayer(el: HTMLElement): boolean {
     // Generic player classes
     const cls = current.className ?? '';
     if (typeof cls === 'string' && /\b(player|video-container|media-player)\b/i.test(cls)) return true;
+    current = current.parentElement;
+  }
+  return false;
+}
+
+function isInsideNavigation(el: HTMLElement): boolean {
+  let current: HTMLElement | null = el;
+  while (current) {
+    const tag = current.tagName?.toLowerCase();
+    if (tag === 'nav') return true;
+    // TikTok nav indicators
+    const dataE2e = current.getAttribute('data-e2e');
+    if (dataE2e === 'inbox-icon' || dataE2e === 'nav-activity' ||
+         dataE2e === 'nav-home' || dataE2e === 'nav-discover') return true;
+    // Generic navigation roles
+    const role = current.getAttribute('role');
+    if (role === 'navigation' || role === 'banner') return true;
+    // Aria labels suggesting navigation
+    const ariaLabel = current.getAttribute('aria-label')?.toLowerCase() ?? '';
+    if (ariaLabel.includes('navigation') || ariaLabel.includes('notific')) return true;
+
     current = current.parentElement;
   }
   return false;
