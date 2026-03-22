@@ -19,6 +19,7 @@ async function computeIntegrityHash(record: ForensicRecord): Promise<string> {
     overallScore: record.overallScore,
     userAgeCategory: record.userAgeCategory,
     aiSource: record.aiSource,
+    feedSource: record.feedSource,
   });
   return sha256(payload);
 }
