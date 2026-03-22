@@ -9,6 +9,7 @@ import { exportJSON, exportCSV } from '../../forensics/exporter';
 import { verifyBatch, BatchVerificationResult } from '../../forensics/chain-of-custody';
 import { getVerdicts, UserVerdict } from '../../forensics/feedback-store';
 import { getAllAuthorProfiles, AuthorProfile } from '../../forensics/author-store';
+import { resolveEntities, ResolvedEntity } from '../../forensics/entity-resolver';
 import { sha256 } from '../../forensics/hasher';
 import { detectCampaigns, Campaign } from '../../forensics/campaign-detector';
 import { computeScanStats, ScanStats } from '../../forensics/scan-log';
@@ -115,6 +116,7 @@ function Dashboard() {
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
   const [calibrationResults, setCalibrationResults] = useState<CalibrationResult[]>([]);
+  const [entities, setEntities] = useState<ResolvedEntity[]>([]);
 
   useEffect(() => {
     chrome.storage.local.get('parentPin').then(result => {
@@ -133,6 +135,7 @@ function Dashboard() {
         setAuthorProfiles(authors);
         setScanStats(scans);
         detectAnomalies().then(setAnomalies).catch(() => {});
+        resolveEntities().then(setEntities).catch(() => {});
         Promise.all([calibrate('child'), calibrate('teen'), calibrate('adult')])
           .then(setCalibrationResults).catch(() => {});
       })
@@ -382,6 +385,69 @@ function Dashboard() {
         {/* Section 5: Author Repeat Offenders */}
         <SectionHeader title="Repeat Offender Accounts" subtitle="Top accounts responsible for manipulation detections — entity resolution across sessions" />
         <AuthorOffenderTable records={records} authorProfiles={authorProfiles} />
+
+        {/* Section 5b: Cross-Platform Actors */}
+        {entities.length > 0 && (
+          <>
+            <SectionHeader title="Cross-Platform Actors" subtitle="Accounts that appear to be the same person across multiple platforms" />
+            <div style={{
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              overflow: 'hidden',
+              marginBottom: 8,
+            }}>
+              {entities.map((entity, i) => (
+                <div key={i} style={{
+                  padding: '12px 16px',
+                  borderBottom: `1px solid ${C.border}`,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <div>
+                      <span style={{ fontSize: 14, fontWeight: 600 }}>{entity.primaryHandle}</span>
+                      <span style={{
+                        fontSize: 10,
+                        marginLeft: 8,
+                        padding: '1px 6px',
+                        borderRadius: 3,
+                        background: entity.confidence === 'exact' ? C.green + '22' : C.amber + '22',
+                        color: entity.confidence === 'exact' ? C.green : C.amber,
+                      }}>
+                        {entity.confidence} match
+                      </span>
+                    </div>
+                    <span style={{
+                      fontSize: 12,
+                      color: entity.flagRate > 0.5 ? C.red : C.muted,
+                      fontWeight: entity.flagRate > 0.5 ? 600 : 400,
+                    }}>
+                      {(entity.flagRate * 100).toFixed(0)}% flag rate
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+                    {entity.profiles.map((p, j) => (
+                      <span key={j} style={{
+                        fontSize: 11,
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        background: platformColor(p.platform),
+                        color: '#fff',
+                        fontWeight: 500,
+                      }}>
+                        {p.platform}: {p.handle} ({p.totalFlagged}/{p.totalSeen})
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 11, color: C.muted }}>
+                    {entity.totalSeen} posts seen across {entity.platforms.length} platforms ·
+                    {' '}{entity.totalFlagged} flagged ·
+                    {' '}Top techniques: {Object.entries(entity.techniques).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t, c]) => `${t} (${c})`).join(', ')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Section 6: Technique Trend Over Time */}
         <SectionHeader title="Technique Trend Over Time" subtitle="How manipulation techniques shift day-by-day — algorithm behavior changes worth surfacing" />
