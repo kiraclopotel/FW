@@ -1360,15 +1360,17 @@ function CalibrationStatus({ verdicts }: { verdicts: UserVerdict[] }) {
 
   const confirmed = verdicts.filter(v => v.verdict === 'confirmed').length;
   const disputed = verdicts.filter(v => v.verdict === 'disputed').length;
+  const spotted = verdicts.filter(v => v.verdict === 'spotted').length;
   const total = verdicts.length;
-  const agreementRate = confirmed / total;
+  const agreementRate = total > 0 ? (confirmed + spotted) / total : 0;
   const rateColor = agreementRate >= 0.7 ? C.green : agreementRate >= 0.5 ? C.amber : C.red;
 
   // Breakdown by mode
   const byMode: Record<string, { confirmed: number; disputed: number; spotted: number }> = {};
   for (const v of verdicts) {
     if (!byMode[v.mode]) byMode[v.mode] = { confirmed: 0, disputed: 0, spotted: 0 };
-    byMode[v.mode][v.verdict]++;
+    if (v.verdict === 'spotted') byMode[v.mode].spotted++;
+    else byMode[v.mode][v.verdict]++;
   }
 
   return (
@@ -1397,6 +1399,7 @@ function CalibrationStatus({ verdicts }: { verdicts: UserVerdict[] }) {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.muted }}>
             <span>{confirmed} confirmed</span>
+            <span>{spotted} spotted correctly</span>
             <span>{disputed} disputed</span>
             <span>{total} total verdicts</span>
           </div>
@@ -1407,15 +1410,36 @@ function CalibrationStatus({ verdicts }: { verdicts: UserVerdict[] }) {
       {Object.entries(byMode).length > 1 && (
         <div style={{ display: 'flex', gap: 16, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
           {Object.entries(byMode).map(([mode, data]) => {
-            const modeRate = data.confirmed / (data.confirmed + data.disputed);
+            const modeTotal = data.confirmed + data.disputed + data.spotted;
+            const modeAgreement = modeTotal > 0 ? (data.confirmed + data.spotted) / modeTotal : 0;
             return (
               <div key={mode} style={{ fontSize: 12, color: C.muted }}>
                 <span style={{ textTransform: 'capitalize', fontWeight: 500, color: C.textSecondary }}>{mode}</span>:{' '}
-                <span style={{ color: modeRate >= 0.7 ? C.green : C.amber }}>{(modeRate * 100).toFixed(0)}%</span>
-                {' '}({data.confirmed + data.disputed} verdicts)
+                <span style={{ color: modeAgreement >= 0.7 ? C.green : C.amber }}>{(modeAgreement * 100).toFixed(0)}%</span>
+                {' '}({modeTotal} verdicts{data.spotted > 0 ? `, ${data.spotted} spotted` : ''})
               </div>
             );
           })}
+        </div>
+      )}
+
+      {spotted > 0 && (
+        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12, marginTop: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 28, fontWeight: 600, color: C.teal }}>
+                {spotted}
+              </div>
+              <div style={{ fontSize: 11, color: C.muted }}>Techniques spotted</div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: '1.5' }}>
+                The teen correctly identified the manipulation technique {spotted} time{spotted !== 1 ? 's' : ''} using the challenge quiz.
+                {spotted >= 10 && ' Strong pattern recognition developing.'}
+                {spotted >= 25 && ' Consider increasing autonomy level.'}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
