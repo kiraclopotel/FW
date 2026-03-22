@@ -48,6 +48,8 @@ const PLATFORM_COLORS: Record<string, string> = {
   instagram: '#e1306c',
   tiktok: '#69c9d0',
   youtube: '#ff0000',
+  reddit: '#ff4500',
+  '4chan': '#789922',
 };
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -56,6 +58,8 @@ const PLATFORM_LABELS: Record<string, string> = {
   instagram: 'Instagram',
   tiktok: 'TikTok',
   youtube: 'YouTube',
+  reddit: 'Reddit',
+  '4chan': '4chan',
 };
 
 // ─── Helpers ───

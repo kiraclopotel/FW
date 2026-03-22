@@ -5,7 +5,7 @@
 import { AnalysisResult } from '../types/analysis';
 import { RouterDecision } from '../types/ai';
 import { LAYER3_DETECTION_SYSTEM } from './prompts';
-import { anthropicProvider } from './cloud/anthropic';
+import { callAI } from './client';
 
 const CLOUD_TIMEOUT_MS = 5000;
 
@@ -38,7 +38,7 @@ export async function callCloud(
     const userPrompt = `POST: ${text}\n\nFLAGGED: ${flags}\n\nANALYZE:`;
 
     const result = await Promise.race([
-      anthropicProvider.send(LAYER3_DETECTION_SYSTEM, userPrompt),
+      callAI(LAYER3_DETECTION_SYSTEM, userPrompt, false),
       new Promise<string>((_, reject) =>
         setTimeout(() => reject(new Error('Cloud timeout')), CLOUD_TIMEOUT_MS)
       ),
