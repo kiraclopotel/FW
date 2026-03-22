@@ -13,6 +13,7 @@ import { getAuthorProfile, getSuspicionBoost } from '../forensics/author-store';
 import { processingCache } from '../storage/cache';
 import { sha256 } from '../forensics/hasher';
 import { getLastCallMeta } from '../ai/client';
+import { getEffectiveThreshold } from './calibration';
 
 export interface PipelineResult {
   action: 'pass' | 'neutralize' | 'flag';
@@ -152,9 +153,7 @@ export async function process(post: PostContent): Promise<PipelineResult> {
     //   a borderline post ("was that really manipulative?") IS the learning experience.
     // Child mode: 0.45 — slightly higher bar since rewrites happen silently
     // Adult mode: 0.35 — just flagging, very low cost of false positive
-    const threshold = settings.mode === 'child' ? 0.45
-                    : settings.mode === 'teen' ? 0.40
-                    : 0.35; // adult: just flagging
+    const threshold = await getEffectiveThreshold(settings.mode);
 
     if (analysis.overallConfidence < threshold) {
       console.log(`[FeelingWise] Pipeline: PASS (confidence ${analysis.overallConfidence.toFixed(2)} < threshold ${threshold})`);
