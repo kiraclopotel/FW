@@ -13,6 +13,7 @@ import { sha256 } from '../../forensics/hasher';
 import { detectCampaigns, Campaign } from '../../forensics/campaign-detector';
 import { computeScanStats, ScanStats } from '../../forensics/scan-log';
 import { detectAnomalies, AnomalyAlert } from '../../forensics/anomaly-detector';
+import { calibrate, applyCalibration, CalibrationResult } from '../../core/calibration';
 
 // ─── Design tokens ───
 const C = {
@@ -113,6 +114,7 @@ function Dashboard() {
   const [pinUnlocked, setPinUnlocked] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [calibrationResults, setCalibrationResults] = useState<CalibrationResult[]>([]);
 
   useEffect(() => {
     chrome.storage.local.get('parentPin').then(result => {
@@ -131,6 +133,8 @@ function Dashboard() {
         setAuthorProfiles(authors);
         setScanStats(scans);
         detectAnomalies().then(setAnomalies).catch(() => {});
+        Promise.all([calibrate('child'), calibrate('teen'), calibrate('adult')])
+          .then(setCalibrationResults).catch(() => {});
       })
       .catch(err => { console.error('[FeelingWise] Dashboard: failed to load records:', err); })
       .finally(() => setLoading(false));
@@ -390,6 +394,63 @@ function Dashboard() {
         {/* Section 8: Calibration Status */}
         <SectionHeader title="Calibration Status" subtitle="User agreement rate — are detections accurate? Below 70% means over-flagging." />
         <CalibrationStatus verdicts={verdicts} />
+
+        {calibrationResults.length > 0 && calibrationResults.some(r => r.shouldAdjust) && (
+          <>
+            <SectionHeader title="Threshold Calibration" subtitle="Based on user feedback, these threshold adjustments are recommended" />
+            <div style={{
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              padding: 20,
+              marginBottom: 8,
+            }}>
+              {calibrationResults.map(r => (
+                <div key={r.mode} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '10px 0',
+                  borderBottom: `1px solid ${C.border}`,
+                }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500, textTransform: 'capitalize' }}>{r.mode} mode</div>
+                    <div style={{ fontSize: 11, color: C.muted }}>
+                      {r.totalVerdicts} verdicts · {(r.agreementRate * 100).toFixed(0)}% agreement · {r.reason}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 12, color: C.muted }}>
+                      {r.currentThreshold.toFixed(2)} → {r.suggestedThreshold.toFixed(2)}
+                    </span>
+                    {r.shouldAdjust && (
+                      <button
+                        onClick={() => applyCalibration(r).then(() => {
+                          setCalibrationResults(prev => prev.map(p =>
+                            p.mode === r.mode ? { ...p, shouldAdjust: false, reason: 'Applied' } : p
+                          ));
+                        })}
+                        style={{
+                          padding: '4px 12px',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          background: C.teal + '18',
+                          color: C.teal,
+                          border: `1px solid ${C.teal}55`,
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          fontFamily: font,
+                        }}
+                      >
+                        Apply
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Section 9: Recent Activity Log */}
         <SectionHeader title="Recent Activity" subtitle="Last 50 neutralized posts — click to expand and see before/after" />
