@@ -400,11 +400,17 @@ const COMMENT_INPUT_SELECTORS: Record<string, string[]> = {
   ],
   tiktok: [
     '[data-e2e="comment-input"]',
-    'div[contenteditable="true"]',
+    '[contenteditable="true"]',
+    '[placeholder*="comentariu" i]',
+    '[placeholder*="comment" i]',
+    '[data-e2e="comment-bottom"]',
+    'div[class*="BottomInput"] [contenteditable]',
+    'div[class*="bottom-input"] [contenteditable]',
   ],
   instagram: [
     'textarea[aria-label*="comment" i]',
     'textarea[placeholder*="comment" i]',
+    'textarea[placeholder*="comentariu" i]',
   ],
 };
 
@@ -412,12 +418,42 @@ export function blockCommentPosting(platform: string): void {
   const selectors = COMMENT_INPUT_SELECTORS[platform];
   if (!selectors) return;
 
+  let found = false;
   for (const sel of selectors) {
-    const els = document.querySelectorAll<HTMLElement>(sel);
-    for (const el of els) {
-      if (el.dataset.fwPostBlocked === 'true') continue;
-      el.style.display = 'none';
-      el.dataset.fwPostBlocked = 'true';
+    try {
+      const els = document.querySelectorAll<HTMLElement>(sel);
+      for (const el of els) {
+        if (el.dataset.fwPostBlocked === 'true') continue;
+        el.style.display = 'none';
+        el.dataset.fwPostBlocked = 'true';
+        found = true;
+      }
+    } catch { /* invalid selector — skip */ }
+  }
+
+  // Structural fallback: find any input-like element with comment-related text
+  if (!found) {
+    const editables = document.querySelectorAll<HTMLElement>(
+      '[contenteditable="true"], textarea, input[type="text"]'
+    );
+    for (const el of editables) {
+      const text = (
+        el.getAttribute('placeholder') ??
+        el.getAttribute('aria-label') ??
+        el.getAttribute('data-placeholder') ??
+        el.textContent ?? ''
+      ).toLowerCase();
+
+      if (/comment|comentariu|reply|răspunde|adaugă/.test(text)) {
+        if (el.dataset.fwPostBlocked === 'true') continue;
+        el.style.display = 'none';
+        el.dataset.fwPostBlocked = 'true';
+        found = true;
+      }
     }
+  }
+
+  if (found) {
+    console.log(`[FeelingWise] Comment posting blocked on ${platform}`);
   }
 }

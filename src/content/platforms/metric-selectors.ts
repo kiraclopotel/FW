@@ -87,11 +87,35 @@ export function getCommentsContainer(platform: string): HTMLElement | null {
   switch (platform) {
     case 'youtube':
       return document.querySelector<HTMLElement>('ytd-comments#comments');
-    case 'tiktok':
-      return document.querySelector<HTMLElement>(
-        '[data-e2e="comment-list"], ' +
-        '[class*="CommentListContainer"]'
+    case 'tiktok': {
+      // Primary: data-e2e (may or may not work depending on TikTok build)
+      const primary = document.querySelector<HTMLElement>('[data-e2e="comment-list"]');
+      if (primary) return primary;
+
+      // Secondary: look for UL inside the comment panel overlay
+      const commentPanel = document.querySelector<HTMLElement>(
+        '[data-e2e="comment-panel"], [data-e2e="browse-comment"], [class*="CommentPanel"]'
       );
+      if (commentPanel) {
+        const ul = commentPanel.querySelector<HTMLElement>('ul');
+        if (ul && ul.children.length >= 1) return ul;
+      }
+
+      // Tertiary: any UL with children that look like comments (have author links)
+      const allULs = document.querySelectorAll<HTMLElement>('ul');
+      for (const ul of allULs) {
+        if (ul.children.length < 2) continue;
+        let commentLike = 0;
+        for (const child of Array.from(ul.children).slice(0, 5)) {
+          if (child instanceof HTMLElement && child.querySelector('a[href*="/@"]')) {
+            commentLike++;
+          }
+        }
+        if (commentLike >= 2) return ul;
+      }
+
+      return null;
+    }
     case 'instagram':
       // Instagram comments are within article > ul structures
       return document.querySelector<HTMLElement>(
