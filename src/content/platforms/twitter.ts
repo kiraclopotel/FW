@@ -89,7 +89,15 @@ export class TwitterAdapter implements PlatformAdapter {
       (el) => results.push(el)
     );
 
-    return results;
+    // Filter out nested tweetText elements (quote tweets)
+    return results.filter(el => {
+      let parent = el.parentElement;
+      while (parent && parent !== root) {
+        if (parent.matches?.('[data-testid="tweetText"]')) return false;
+        parent = parent.parentElement;
+      }
+      return true;
+    });
   }
 
   private _extractHandle(article: Element | null): string | null {
