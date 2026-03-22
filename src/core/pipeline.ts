@@ -10,6 +10,8 @@ import { detect } from './detector';
 import { combinedDetectAndNeutralize } from './neutralizer';
 import { getSettings } from '../storage/settings';
 import { getAuthorProfile, getSuspicionBoost } from '../forensics/author-store';
+import { processingCache } from '../storage/cache';
+import { sha256 } from '../forensics/hasher';
 
 export interface PipelineResult {
   action: 'pass' | 'neutralize' | 'flag';
@@ -49,6 +51,29 @@ export async function process(post: PostContent): Promise<PipelineResult> {
     // Quick reject: too short or no real content
     if (post.text.length < MIN_TEXT_LENGTH || !isSubstantiveText(post.text)) {
       return PASS;
+    }
+
+    // Check dedup cache — identical content (retweets, reposts) gets cached result
+    const textHash = await sha256(post.text);
+    const cached = processingCache.get(textHash);
+    if (cached) {
+      console.log(`[FeelingWise] Pipeline: CACHE HIT for ${post.id}`);
+      if (!cached.analysis.isManipulative || !cached.neutralizedText) {
+        return PASS;
+      }
+      const settings = await getSettings();
+      const cachedNeutralized: NeutralizedContent = {
+        postId: post.id,
+        originalHash: textHash,
+        rewrittenText: cached.neutralizedText,
+        analysis: { ...cached.analysis, postId: post.id },
+        aiSource: 'cloud',
+        processingTimeMs: 0,
+      };
+      return {
+        action: settings.mode === 'adult' ? 'flag' : 'neutralize',
+        neutralized: cachedNeutralized,
+      };
     }
 
     // Cache settings once — used for budget check and mode threshold below
@@ -150,6 +175,9 @@ export async function process(post: PostContent): Promise<PipelineResult> {
     // Set the postId on the neutralized content
     neutralized.postId = post.id;
     neutralized.analysis = analysis;
+
+    // Cache the result for dedup
+    processingCache.set(textHash, analysis, neutralized.rewrittenText);
 
     const totalMs = performance.now() - startTime;
 

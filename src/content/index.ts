@@ -13,10 +13,13 @@ import { InstagramAdapter } from './platforms/instagram';
 import { ContentInterceptor } from './interceptor';
 import { PostContent } from '../types/post';
 import { PlatformAdapter } from './platforms/adapter';
-import { process } from '../core/pipeline';
+import { process as processPipeline, PipelineResult } from '../core/pipeline';
 import { getSettings } from '../storage/settings';
 import { injectIntoElement } from './injector';
+import { ProcessingQueue } from './queue';
+
 let activeAdapter: PlatformAdapter | null = null;
+let queue: ProcessingQueue | null = null;
 
 function init(): void {
   const platform = detectCurrentPlatform();
@@ -29,6 +32,7 @@ function init(): void {
   }
 
   activeAdapter = adapter;
+  queue = new ProcessingQueue(processPipeline, onProcessingResult);
   const interceptor = new ContentInterceptor(adapter, onPostDetected);
   interceptor.start();
 
@@ -36,19 +40,56 @@ function init(): void {
 }
 
 async function onPostDetected(post: PostContent): Promise<void> {
-  const result = await process(post);
+  if (!queue) return;
+  const el = post.domRef.deref();
+  const isVisible = el ? isInViewport(el) : false;
+  queue.enqueue(post, isVisible);
+}
 
+function isInViewport(el: HTMLElement): boolean {
+  const rect = el.getBoundingClientRect();
+  return rect.top < window.innerHeight && rect.bottom > 0;
+}
+
+function onProcessingResult(post: PostContent, result: PipelineResult): void {
   if ((result.action === 'neutralize' || result.action === 'flag') && result.neutralized && activeAdapter) {
     // Get mode for injection styling
-    const settings = await getSettings();
-    const el = post.domRef.deref();
+    getSettings().then(settings => {
+      const el = post.domRef.deref();
 
-    if (el) {
-      injectIntoElement(el, result.neutralized, settings.mode);
-    } else if (result.action === 'neutralize') {
-      // Only fallback-replace for neutralize (child/teen), not flag (adult)
-      activeAdapter.replaceContent(post.domRef, result.neutralized.rewrittenText);
-    }
+      if (el) {
+        injectIntoElement(el, result.neutralized!, settings.mode);
+      } else if (result.action === 'neutralize') {
+        // Only fallback-replace for neutralize (child/teen), not flag (adult)
+        activeAdapter!.replaceContent(post.domRef, result.neutralized!.rewrittenText);
+      }
+
+      // Send forensic data to service worker for storage in extension-origin IndexedDB.
+      // Content scripts run in the webpage's origin, so writing IndexedDB here would
+      // be invisible to the dashboard (which runs in the extension origin).
+      let postUrl = '';
+      if (post.platform === 'twitter' && post.author && post.id) {
+        const handle = post.author.replace(/^@/, '');
+        if (/^[A-Za-z0-9_]+$/.test(handle)) {
+          postUrl = `https://x.com/${handle}/status/${post.id}`;
+        }
+      }
+
+      chrome.runtime.sendMessage({
+        type: 'FORENSIC_LOG',
+        payload: {
+          originalText: post.text,
+          neutralizedText: result.neutralized!.rewrittenText,
+          analysis: result.neutralized!.analysis,
+          mode: settings.mode,
+          platform: post.platform,
+          aiSource: result.neutralized!.aiSource,
+          author: post.author,
+          postUrl,
+          feedSource: post.feedSource ?? 'unknown',
+        },
+      }).catch(err => { console.error('[FeelingWise] Forensic logging error:', err); });
+    });
 
     // Notify service worker for stats tracking
     const confirmedTechniques = result.neutralized.analysis.techniques
@@ -64,35 +105,6 @@ async function onPostDetected(post: PostContent): Promise<void> {
       },
       timestamp: new Date().toISOString(),
     }).catch(() => {}); // ignore if popup not open
-
-    // Construct post URL when possible
-    let postUrl = '';
-    if (post.platform === 'twitter' && post.author && post.id) {
-      // Only build URL if author looks like a valid handle (no spaces, alphanumeric + underscores).
-      // The _extractAuthor fallback can return display names with spaces which break the URL.
-      const handle = post.author.replace(/^@/, '');
-      if (/^[A-Za-z0-9_]+$/.test(handle)) {
-        postUrl = `https://x.com/${handle}/status/${post.id}`;
-      }
-    }
-
-    // Send forensic data to service worker for storage in extension-origin IndexedDB.
-    // Content scripts run in the webpage's origin, so writing IndexedDB here would
-    // be invisible to the dashboard (which runs in the extension origin).
-    chrome.runtime.sendMessage({
-      type: 'FORENSIC_LOG',
-      payload: {
-        originalText: post.text,
-        neutralizedText: result.neutralized.rewrittenText,
-        analysis: result.neutralized.analysis,
-        mode: settings.mode,
-        platform: post.platform,
-        aiSource: result.neutralized.aiSource,
-        author: post.author,
-        postUrl,
-        feedSource: post.feedSource ?? 'unknown',
-      },
-    }).catch(err => { console.error('[FeelingWise] Forensic logging error:', err); });
 
     console.log(`[FeelingWise] ${result.action === 'flag' ? 'Flagged' : 'Neutralized'} post ${post.id}`);
   }
