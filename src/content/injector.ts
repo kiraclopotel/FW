@@ -70,6 +70,18 @@ function addGuard(el: HTMLElement, expectedText: string): void {
   guards.set(el, observer);
   guardOrder.push(el);
 
+  // Prune disconnected elements (virtual scrolling cleanup)
+  for (let i = guardOrder.length - 1; i >= 0; i--) {
+    if (!guardOrder[i].isConnected) {
+      const removed = guardOrder.splice(i, 1)[0];
+      const obs = guards.get(removed);
+      if (obs) {
+        obs.disconnect();
+        guards.delete(removed);
+      }
+    }
+  }
+
   // Enforce max guard limit
   while (guardOrder.length > MAX_GUARDS) {
     const oldest = guardOrder.shift()!;
