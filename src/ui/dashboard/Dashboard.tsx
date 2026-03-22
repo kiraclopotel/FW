@@ -826,6 +826,8 @@ interface AuthorSummary {
 }
 
 function AuthorOffenderTable({ records, authorProfiles }: { records: ForensicRecord[]; authorProfiles: AuthorProfile[] }) {
+  const [expandedAuthor, setExpandedAuthor] = useState<string | null>(null);
+
   // Group forensic records by author
   const authorMap: Record<string, { count: number; techniques: Record<string, number>; totalSeverity: number; lastSeen: string }> = {};
 
@@ -900,48 +902,150 @@ function AuthorOffenderTable({ records, authorProfiles }: { records: ForensicRec
       {summaries.map(s => {
         const pct = ((s.totalDetections / totalDetections) * 100).toFixed(0);
         const sevColor = s.avgSeverity >= 7 ? C.red : s.avgSeverity >= 4 ? C.amber : C.green;
+        const isExpanded = expandedAuthor === s.author;
+        const authorRecords = isExpanded ? records.filter(r => r.author === s.author).sort((a, b) => b.timestamp.localeCompare(a.timestamp)) : [];
         return (
-          <div key={s.author} style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 90px 140px 80px 90px 70px',
-            gap: 8,
-            padding: '10px 16px',
-            borderBottom: `1px solid ${C.border}`,
-            fontSize: 13,
-          }}>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
-              {s.author}
-            </span>
-            <span style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-              {s.totalDetections} <span style={{ fontSize: 11, color: C.muted }}>({pct}%)</span>
-            </span>
-            <span style={{
-              fontSize: 11,
-              padding: '1px 7px',
-              borderRadius: 3,
-              background: techniqueColor(s.mostCommonTechnique) + '22',
-              color: techniqueColor(s.mostCommonTechnique),
-              border: `1px solid ${techniqueColor(s.mostCommonTechnique)}44`,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              alignSelf: 'center',
-            }}>
-              {s.mostCommonTechnique.replace(/-/g, ' ')}
-            </span>
-            <span style={{ textAlign: 'right', color: sevColor, fontWeight: 600 }}>
-              {s.avgSeverity.toFixed(1)}
-            </span>
-            <span style={{ fontSize: 12, color: C.muted }}>{relativeTime(s.lastSeen)}</span>
-            <span style={{ textAlign: 'right', fontSize: 12 }}>
-              {s.flagRate !== null ? (
-                <span style={{ color: s.flagRate > 0.5 ? C.red : C.muted, fontWeight: s.flagRate > 0.5 ? 600 : 400 }}>
-                  {(s.flagRate * 100).toFixed(0)}%
-                </span>
-              ) : (
-                <span style={{ color: C.muted }}>—</span>
-              )}
-            </span>
+          <div key={s.author}>
+            <div
+              onClick={() => setExpandedAuthor(isExpanded ? null : s.author)}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 90px 140px 80px 90px 70px',
+                gap: 8,
+                padding: '10px 16px',
+                borderBottom: `1px solid ${C.border}`,
+                fontSize: 13,
+                cursor: 'pointer',
+                background: isExpanded ? C.cardHover : 'transparent',
+              }}
+            >
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                {s.author}
+              </span>
+              <span style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                {s.totalDetections} <span style={{ fontSize: 11, color: C.muted }}>({pct}%)</span>
+              </span>
+              <span style={{
+                fontSize: 11,
+                padding: '1px 7px',
+                borderRadius: 3,
+                background: techniqueColor(s.mostCommonTechnique) + '22',
+                color: techniqueColor(s.mostCommonTechnique),
+                border: `1px solid ${techniqueColor(s.mostCommonTechnique)}44`,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                alignSelf: 'center',
+              }}>
+                {s.mostCommonTechnique.replace(/-/g, ' ')}
+              </span>
+              <span style={{ textAlign: 'right', color: sevColor, fontWeight: 600 }}>
+                {s.avgSeverity.toFixed(1)}
+              </span>
+              <span style={{ fontSize: 12, color: C.muted }}>{relativeTime(s.lastSeen)}</span>
+              <span style={{ textAlign: 'right', fontSize: 12 }}>
+                {s.flagRate !== null ? (
+                  <span style={{ color: s.flagRate > 0.5 ? C.red : C.muted, fontWeight: s.flagRate > 0.5 ? 600 : 400 }}>
+                    {(s.flagRate * 100).toFixed(0)}%
+                  </span>
+                ) : (
+                  <span style={{ color: C.muted }}>—</span>
+                )}
+              </span>
+            </div>
+            {isExpanded && authorRecords.length > 0 && (
+              <div style={{
+                padding: '12px 20px',
+                background: '#0e0e0e',
+                borderBottom: `1px solid ${C.border}`,
+                maxHeight: 500,
+                overflowY: 'auto',
+              }}>
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
+                  {authorRecords.length} flagged posts by <strong style={{ color: C.text }}>{s.author}</strong>
+                  {s.flagRate !== null && (
+                    <span> · Flag rate: <strong style={{ color: s.flagRate > 0.5 ? C.red : C.muted }}>{(s.flagRate * 100).toFixed(0)}%</strong> of {profileMap[s.author]?.totalSeen ?? '?'} posts seen</span>
+                  )}
+                </div>
+                {authorRecords.map(r => (
+                  <div key={r.id} style={{
+                    background: C.card,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 8,
+                    padding: 12,
+                    marginBottom: 8,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, color: C.muted }}>
+                        {new Date(r.timestamp).toLocaleString()}
+                        {r.postUrl && (
+                          <a href={r.postUrl} target="_blank" rel="noopener noreferrer"
+                             style={{ color: C.teal, marginLeft: 8, textDecoration: 'underline' }}>
+                            View post
+                          </a>
+                        )}
+                      </span>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {r.techniques.map((t, i) => (
+                          <span key={i} style={{
+                            fontSize: 10,
+                            padding: '1px 6px',
+                            borderRadius: 3,
+                            background: techniqueColor(t.name) + '22',
+                            color: techniqueColor(t.name),
+                            border: `1px solid ${techniqueColor(t.name)}44`,
+                          }}>
+                            {t.name.replace(/-/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: C.red, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, fontWeight: 600 }}>
+                          Original
+                        </div>
+                        <div style={{
+                          fontSize: 12,
+                          lineHeight: '1.5',
+                          color: C.textSecondary,
+                          padding: 8,
+                          background: 'rgba(239,83,80,0.05)',
+                          borderRadius: 6,
+                          border: `1px solid ${C.red}22`,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          maxHeight: 120,
+                          overflowY: 'auto',
+                        }}>
+                          {r.originalText || '(not recorded)'}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: C.green, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, fontWeight: 600 }}>
+                          Neutralized
+                        </div>
+                        <div style={{
+                          fontSize: 12,
+                          lineHeight: '1.5',
+                          color: C.textSecondary,
+                          padding: 8,
+                          background: 'rgba(76,175,80,0.05)',
+                          borderRadius: 6,
+                          border: `1px solid ${C.green}22`,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          maxHeight: 120,
+                          overflowY: 'auto',
+                        }}>
+                          {r.neutralizedText}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
@@ -1338,13 +1442,16 @@ function CalibrationStatus({ verdicts }: { verdicts: UserVerdict[] }) {
 // ═══════════════════════════════════════
 
 function ActivityLog({ records }: { records: ForensicRecord[] }) {
-  const recent = [...records]
-    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-    .slice(0, 50);
-
+  const [authorFilter, setAuthorFilter] = useState<string | null>(null);
+  const [platformFilter, setPlatformFilter] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  if (recent.length === 0) {
+  let filtered = [...records].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  if (authorFilter) filtered = filtered.filter(r => r.author === authorFilter);
+  if (platformFilter) filtered = filtered.filter(r => r.platform === platformFilter);
+  const recent = filtered.slice(0, 50);
+
+  if (records.length === 0) {
     return <EmptyCard message="No activity yet" />;
   }
 
@@ -1358,6 +1465,50 @@ function ActivityLog({ records }: { records: ForensicRecord[] }) {
       maxHeight: 700,
       overflowY: 'auto',
     }}>
+      {/* Filter bar */}
+      <div style={{
+        display: 'flex',
+        gap: 8,
+        padding: '8px 16px',
+        borderBottom: `1px solid ${C.border}`,
+        alignItems: 'center',
+      }}>
+        <span style={{ fontSize: 11, color: C.muted }}>Filter:</span>
+        <select
+          value={authorFilter ?? ''}
+          onChange={e => setAuthorFilter(e.target.value || null)}
+          style={{
+            background: C.card, color: C.text, border: `1px solid ${C.border}`,
+            borderRadius: 4, padding: '3px 6px', fontSize: 11, fontFamily: font,
+          }}
+        >
+          <option value="">All authors</option>
+          {[...new Set(records.map(r => r.author).filter(Boolean))].sort().map(a => (
+            <option key={a} value={a}>{a}</option>
+          ))}
+        </select>
+        <select
+          value={platformFilter ?? ''}
+          onChange={e => setPlatformFilter(e.target.value || null)}
+          style={{
+            background: C.card, color: C.text, border: `1px solid ${C.border}`,
+            borderRadius: 4, padding: '3px 6px', fontSize: 11, fontFamily: font,
+          }}
+        >
+          <option value="">All platforms</option>
+          {[...new Set(records.map(r => r.platform))].sort().map(p => (
+            <option key={p} value={p}>{platformLabel(p)}</option>
+          ))}
+        </select>
+        {(authorFilter || platformFilter) && (
+          <span
+            onClick={() => { setAuthorFilter(null); setPlatformFilter(null); }}
+            style={{ fontSize: 11, color: C.teal, cursor: 'pointer' }}
+          >
+            Clear filters
+          </span>
+        )}
+      </div>
       {/* Column headers */}
       <div style={{
         display: 'grid',
