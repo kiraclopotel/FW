@@ -11,6 +11,7 @@ import { getVerdicts, UserVerdict } from '../../forensics/feedback-store';
 import { getAllAuthorProfiles, AuthorProfile } from '../../forensics/author-store';
 import { sha256 } from '../../forensics/hasher';
 import { detectCampaigns, Campaign } from '../../forensics/campaign-detector';
+import { computeScanStats, ScanStats } from '../../forensics/scan-log';
 
 // ─── Design tokens ───
 const C = {
@@ -105,6 +106,7 @@ function Dashboard() {
   const [verifying, setVerifying] = useState(false);
   const [verdicts, setVerdicts] = useState<UserVerdict[]>([]);
   const [authorProfiles, setAuthorProfiles] = useState<AuthorProfile[]>([]);
+  const [scanStats, setScanStats] = useState<ScanStats | null>(null);
   const [pinRequired, setPinRequired] = useState<boolean | null>(null);
   const [pinUnlocked, setPinUnlocked] = useState(false);
   const [pinInput, setPinInput] = useState('');
@@ -118,13 +120,14 @@ function Dashboard() {
 
   useEffect(() => {
     if (pinRequired === null || (pinRequired && !pinUnlocked)) return;
-    Promise.all([getRecords(), getStats(), getVerdicts(), getAllAuthorProfiles()])
-      .then(([recs, st, vds, authors]) => {
+    Promise.all([getRecords(), getStats(), getVerdicts(), getAllAuthorProfiles(), computeScanStats()])
+      .then(([recs, st, vds, authors, scans]) => {
         console.log(`[FeelingWise] Dashboard: loaded ${recs.length} records, ${vds.length} verdicts, ${authors.length} author profiles`);
         setRecords(recs);
         setStats(st);
         setVerdicts(vds);
         setAuthorProfiles(authors);
+        setScanStats(scans);
       })
       .catch(err => { console.error('[FeelingWise] Dashboard: failed to load records:', err); })
       .finally(() => setLoading(false));
@@ -283,8 +286,8 @@ function Dashboard() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
           <OverviewCard
             label="Posts Scanned Today"
-            value={stats?.today ?? 0}
-            sub={`${stats?.total ?? 0} all-time`}
+            value={scanStats?.totalScanned ?? stats?.today ?? 0}
+            sub={`${scanStats ? `${scanStats.totalNeutralized + scanStats.totalFlagged} flagged` : `${stats?.total ?? 0} all-time`}`}
             color={C.teal}
           />
           <OverviewCard
@@ -319,7 +322,7 @@ function Dashboard() {
 
         {/* Section 2: Algorithm Accountability (lead section) */}
         <SectionHeader title="Algorithm Accountability" subtitle="How much of the manipulation was pushed by the algorithm vs accounts your child chose to follow?" />
-        <AlgorithmVsChoice records={records} />
+        <AlgorithmVsChoice records={records} scanStats={scanStats} />
 
         {/* Section 2.5: Coordinated Campaigns */}
         <SectionHeader title="Coordinated Campaigns" subtitle="Groups of similar posts using the same manipulation techniques — potential coordinated activity" />
@@ -335,7 +338,7 @@ function Dashboard() {
 
         {/* Section 4: Time-of-Day Heatmap */}
         <SectionHeader title="Time-of-Day Heatmap" subtitle="When does your child encounter the most manipulation? Hour-by-hour intensity." />
-        <TimeOfDayHeatmap records={records} />
+        <TimeOfDayHeatmap records={records} scanStats={scanStats} />
 
         {/* Section 5: Author Repeat Offenders */}
         <SectionHeader title="Repeat Offender Accounts" subtitle="Top accounts responsible for manipulation detections — entity resolution across sessions" />
@@ -347,7 +350,7 @@ function Dashboard() {
 
         {/* Section 7: Session Intensity */}
         <SectionHeader title="Session Intensity" subtitle="Most intense browsing sessions ranked by manipulation density — high sessions are dangerous" />
-        <SessionIntensity records={records} />
+        <SessionIntensity records={records} scanStats={scanStats} />
 
         {/* Section 8: Calibration Status */}
         <SectionHeader title="Calibration Status" subtitle="User agreement rate — are detections accurate? Below 70% means over-flagging." />
@@ -608,92 +611,109 @@ function CoordinatedCampaigns({ campaigns }: { campaigns: Campaign[] }) {
 // Section 3b: Algorithm vs Choice
 // ═══════════════════════════════════════
 
-function AlgorithmVsChoice({ records }: { records: ForensicRecord[] }) {
+function AlgorithmVsChoice({ records, scanStats }: { records: ForensicRecord[]; scanStats: ScanStats | null }) {
+  // Use scan stats if available (has denominator), fall back to forensic-only
+  const hasScanData = scanStats && Object.keys(scanStats.byFeedSource).length > 0;
+  if (hasScanData) {
+    const forYouData = scanStats.byFeedSource['for-you'] ?? { scanned: 0, flagged: 0 };
+    const followingData = scanStats.byFeedSource['following'] ?? { scanned: 0, flagged: 0 };
+    if (forYouData.scanned === 0 && followingData.scanned === 0) {
+      return <EmptyCard message="No feed source data yet — browse Twitter/X to collect data" />;
+    }
+    const forYouRate = forYouData.scanned > 0 ? (forYouData.flagged / forYouData.scanned * 100) : 0;
+    const followingRate = followingData.scanned > 0 ? (followingData.flagged / followingData.scanned * 100) : 0;
+    return (
+      <div style={{
+        background: C.card,
+        border: `1px solid ${C.border}`,
+        borderRadius: 8,
+        padding: 24,
+        marginBottom: 8,
+      }}>
+        {/* Two-row comparison */}
+        <div style={{ marginBottom: 16 }}>
+          {/* For You row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <span style={{ width: 100, fontSize: 13, color: C.text }}>For You</span>
+            <div style={{ flex: 1, height: 24, background: C.border, borderRadius: 4, overflow: 'hidden', position: 'relative' }}>
+              <div style={{
+                height: '100%',
+                width: `${forYouRate}%`,
+                background: C.red,
+                borderRadius: 4,
+              }} />
+            </div>
+            <span style={{ width: 120, fontSize: 12, color: C.muted, textAlign: 'right' }}>
+              {forYouData.flagged}/{forYouData.scanned} ({forYouRate.toFixed(1)}%)
+            </span>
+          </div>
+          {/* Following row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ width: 100, fontSize: 13, color: C.text }}>Following</span>
+            <div style={{ flex: 1, height: 24, background: C.border, borderRadius: 4, overflow: 'hidden', position: 'relative' }}>
+              <div style={{
+                height: '100%',
+                width: `${followingRate}%`,
+                background: C.green,
+                borderRadius: 4,
+              }} />
+            </div>
+            <span style={{ width: 120, fontSize: 12, color: C.muted, textAlign: 'right' }}>
+              {followingData.flagged}/{followingData.scanned} ({followingRate.toFixed(1)}%)
+            </span>
+          </div>
+        </div>
+        {/* Insight */}
+        <div style={{
+          padding: 14,
+          borderRadius: 6,
+          background: forYouRate > followingRate ? C.red + '15' : C.green + '15',
+          border: `1px solid ${forYouRate > followingRate ? C.red : C.green}33`,
+          fontSize: 13,
+          lineHeight: '1.6',
+        }}>
+          {forYouRate > followingRate ? (
+            <span style={{ color: C.red }}>
+              The algorithm's "For You" feed has a {forYouRate.toFixed(1)}% manipulation rate
+              vs {followingRate.toFixed(1)}% from followed accounts.
+              {forYouRate > followingRate * 2 && ' The algorithm is serving manipulation at more than double the rate of organic follows.'}
+            </span>
+          ) : (
+            <span style={{ color: C.green }}>
+              Followed accounts have a higher manipulation rate ({followingRate.toFixed(1)}%)
+              than the algorithm ({forYouRate.toFixed(1)}%).
+              Consider reviewing the follow list together.
+            </span>
+          )}
+        </div>
+        {/* Total context */}
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 10 }}>
+          Total posts scanned: {forYouData.scanned + followingData.scanned} ·
+          {' '}{Object.entries(scanStats.byFeedSource).filter(([k]) => k !== 'for-you' && k !== 'following').reduce((s, [,v]) => s + v.scanned, 0)} from other sources not shown
+        </div>
+      </div>
+    );
+  }
+  // Fallback: forensic-only (old behavior)
   const forYou = records.filter(r => r.feedSource === 'for-you').length;
   const following = records.filter(r => r.feedSource === 'following').length;
-  const other = records.length - forYou - following;
   const total = forYou + following;
-
   if (total === 0) {
     return <EmptyCard message="No feed source data yet — browse Twitter/X to collect data" />;
   }
-
   const forYouPct = Math.round((forYou / total) * 100);
   const followingPct = 100 - forYouPct;
-
   return (
     <div style={{
-      background: C.card,
-      border: `1px solid ${C.border}`,
-      borderRadius: 8,
-      padding: 24,
-      marginBottom: 8,
+      background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24, marginBottom: 8,
     }}>
-      {/* Bar chart */}
       <div style={{ display: 'flex', height: 32, borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
-        {forYouPct > 0 && (
-          <div style={{ width: `${forYouPct}%`, background: C.red, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#fff' }}>{forYouPct}%</span>
-          </div>
-        )}
-        {followingPct > 0 && (
-          <div style={{ width: `${followingPct}%`, background: C.green, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#fff' }}>{followingPct}%</span>
-          </div>
-        )}
+        {forYouPct > 0 && <div style={{ width: `${forYouPct}%`, background: C.red, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 11, fontWeight: 600, color: '#fff' }}>{forYouPct}%</span></div>}
+        {followingPct > 0 && <div style={{ width: `${followingPct}%`, background: C.green, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 11, fontWeight: 600, color: '#fff' }}>{followingPct}%</span></div>}
       </div>
-
-      {/* Legend */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 12, height: 12, borderRadius: 3, background: C.red, display: 'inline-block' }} />
-          <span style={{ fontSize: 13 }}>For You (algorithm)</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: C.red }}>{forYou}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 12, height: 12, borderRadius: 3, background: C.green, display: 'inline-block' }} />
-          <span style={{ fontSize: 13 }}>Following (choice)</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: C.green }}>{following}</span>
-        </div>
+      <div style={{ fontSize: 11, color: C.amber, fontStyle: 'italic' }}>
+        Note: These numbers only include flagged posts. Scan event logging is now active — accurate rates will appear after more browsing.
       </div>
-
-      {/* Insight text */}
-      <div style={{
-        padding: 14,
-        borderRadius: 6,
-        background: forYouPct > 50 ? C.red + '15' : C.green + '15',
-        border: `1px solid ${forYouPct > 50 ? C.red : C.green}33`,
-        fontSize: 13,
-        lineHeight: '1.6',
-      }}>
-        {forYouPct > 50 ? (
-          <span style={{ color: C.red }}>
-            {forYouPct}% of detected manipulation came from algorithmic recommendations (For You feed).
-            The algorithm is actively serving manipulative content — this is not content the user chose to see.
-          </span>
-        ) : (
-          <span style={{ color: C.green }}>
-            {followingPct}% of detected manipulation came from accounts being followed.
-            Most manipulation comes from accounts the user chose to follow, not algorithmic recommendations.
-          </span>
-        )}
-        {forYouPct > 70 && (
-          <div style={{ marginTop: 10, fontSize: 13, color: C.red, fontWeight: 600 }}>
-            The platform's algorithm is the primary source of manipulation in your child's feed. This is an editorial decision by the platform.
-          </div>
-        )}
-        {followingPct > 70 && (
-          <div style={{ marginTop: 10, fontSize: 13, color: C.green, fontWeight: 600 }}>
-            Most manipulation comes from accounts being followed. Consider reviewing the follow list together.
-          </div>
-        )}
-      </div>
-
-      {other > 0 && (
-        <div style={{ fontSize: 11, color: C.muted, marginTop: 10 }}>
-          {other} post{other !== 1 ? 's' : ''} from other sources (profile, search, unknown) not included in this breakdown.
-        </div>
-      )}
     </div>
   );
 }
@@ -702,14 +722,18 @@ function AlgorithmVsChoice({ records }: { records: ForensicRecord[] }) {
 // Section 4: Time-of-Day Heatmap
 // ═══════════════════════════════════════
 
-function TimeOfDayHeatmap({ records }: { records: ForensicRecord[] }) {
-  if (records.length === 0) return <EmptyCard message="No data for heatmap yet" />;
+function TimeOfDayHeatmap({ records, scanStats }: { records: ForensicRecord[]; scanStats: ScanStats | null }) {
+  if (records.length === 0 && !scanStats) return <EmptyCard message="No data for heatmap yet" />;
 
-  // Group by hour (0-23)
-  const hourCounts = new Array(24).fill(0);
-  for (const r of records) {
-    const hour = new Date(r.timestamp).getHours();
-    hourCounts[hour]++;
+  // Use scan stats if available for accurate rates
+  const hourCounts = scanStats ? [...scanStats.flaggedByHour] : new Array(24).fill(0);
+  const hourTotals = scanStats ? scanStats.byHour : null;
+  // If no scan stats, fall back to forensic records only
+  if (!scanStats) {
+    for (const r of records) {
+      const hour = new Date(r.timestamp).getHours();
+      hourCounts[hour]++;
+    }
   }
 
   const max = Math.max(...hourCounts, 1);
@@ -740,7 +764,10 @@ function TimeOfDayHeatmap({ records }: { records: ForensicRecord[] }) {
           return (
             <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
               <div
-                title={`${hourLabels[i]}: ${count} detections`}
+                title={hourTotals
+                  ? `${hourLabels[i]}: ${hourCounts[i]} flagged / ${hourTotals[i]} scanned (${hourTotals[i] > 0 ? (hourCounts[i] / hourTotals[i] * 100).toFixed(0) : 0}%)`
+                  : `${hourLabels[i]}: ${count} detections`
+                }
                 style={{
                   width: '100%',
                   height: `${Math.max(4, intensity * 60)}px`,
@@ -778,7 +805,7 @@ function TimeOfDayHeatmap({ records }: { records: ForensicRecord[] }) {
           <span style={{ width: 10, height: 10, borderRadius: 2, background: C.red }} /> High
         </span>
         <span style={{ marginLeft: 'auto' }}>
-          Peak: <strong style={{ color: C.text }}>{hourLabels[hourCounts.indexOf(max)]}</strong> ({max} detections)
+          Peak: <strong style={{ color: C.text }}>{hourLabels[hourCounts.indexOf(max)]}</strong> ({max} {hourTotals ? 'flagged' : 'detections'})
         </span>
       </div>
     </div>
@@ -1071,8 +1098,13 @@ interface Session {
   techniques: Record<string, number>;
 }
 
-function SessionIntensity({ records }: { records: ForensicRecord[] }) {
+function SessionIntensity({ records, scanStats }: { records: ForensicRecord[]; scanStats: ScanStats | null }) {
   if (records.length < 2) return <EmptyCard message="Need more records to detect sessions" />;
+
+  // Compute overall flag rate from scan stats
+  const overallFlagRate = scanStats && scanStats.totalScanned > 0
+    ? (scanStats.totalNeutralized + scanStats.totalFlagged) / scanStats.totalScanned
+    : 1.0; // fallback: assume 100% if no scan data (old behavior)
 
   // Sort chronologically
   const sorted = [...records].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
@@ -1091,14 +1123,14 @@ function SessionIntensity({ records }: { records: ForensicRecord[] }) {
     } else {
       // Finalize previous session
       if (sessionRecords.length >= 2) {
-        sessions.push(buildSession(sessionRecords));
+        sessions.push(buildSession(sessionRecords, overallFlagRate));
       }
       sessionRecords = [sorted[i]];
     }
   }
   // Final session
   if (sessionRecords.length >= 2) {
-    sessions.push(buildSession(sessionRecords));
+    sessions.push(buildSession(sessionRecords, overallFlagRate));
   }
 
   // Sort by intensity descending, take top 5
@@ -1171,19 +1203,24 @@ function SessionIntensity({ records }: { records: ForensicRecord[] }) {
   );
 }
 
-function buildSession(recs: ForensicRecord[]): Session {
+function buildSession(recs: ForensicRecord[], overallFlagRate: number): Session {
   const techniques: Record<string, number> = {};
   for (const r of recs) {
     for (const t of r.techniques) {
       techniques[t.name] = (techniques[t.name] || 0) + 1;
     }
   }
+  // Estimate total posts in this session window using the overall flag rate
+  // If flag rate is 30%, and we saw 10 flagged posts, ~33 total were scanned
+  const estimatedTotal = overallFlagRate > 0
+    ? Math.round(recs.length / overallFlagRate)
+    : recs.length;
   return {
     start: recs[0].timestamp,
     end: recs[recs.length - 1].timestamp,
-    totalPosts: recs.length,
-    neutralizedPosts: recs.length, // all forensic records are neutralized posts
-    intensity: 1.0, // all logged posts were flagged, so intensity = 1.0 within forensic-only data
+    totalPosts: estimatedTotal,
+    neutralizedPosts: recs.length,
+    intensity: overallFlagRate > 0 ? overallFlagRate : 1.0,
     techniques,
   };
 }
