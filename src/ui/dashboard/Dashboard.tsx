@@ -258,6 +258,11 @@ function Dashboard() {
     ? Object.entries(stats.byTechnique).sort((a, b) => b[1] - a[1])[0]
     : null;
 
+  const forYouCount = records.filter(r => r.feedSource === 'for-you').length;
+  const followingCount = records.filter(r => r.feedSource === 'following').length;
+  const feedTotal = forYouCount + followingCount;
+  const forYouPct = feedTotal > 0 ? Math.round((forYouCount / feedTotal) * 100) : 0;
+
   return (
     <div style={page}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px' }}>
@@ -298,19 +303,28 @@ function Dashboard() {
             sub={`across ${stats ? Object.keys(stats.byPlatform).length : 0} platforms`}
             color={C.purple}
           />
+          {feedTotal > 0 && (
+            <OverviewCard
+              label="Algorithm-Pushed Manipulation"
+              value={`${forYouPct}%`}
+              sub={`${forYouCount} posts from algorithm vs ${followingCount} from followed`}
+              color={forYouPct > 50 ? C.red : C.green}
+              isText
+            />
+          )}
         </div>
 
-        {/* Section 2: Platform Breakdown */}
+        {/* Section 2: Algorithm Accountability (lead section) */}
+        <SectionHeader title="Algorithm Accountability" subtitle="How much of the manipulation was pushed by the algorithm vs accounts your child chose to follow?" />
+        <AlgorithmVsChoice records={records} />
+
+        {/* Section 3: Platform Breakdown */}
         <SectionHeader title="Platform Breakdown" subtitle="What each platform served — per platform accountability" />
         <PlatformBreakdown records={records} stats={stats} />
 
-        {/* Section 3: Technique Frequency */}
+        {/* Section 4: Technique Frequency */}
         <SectionHeader title="Technique Frequency" subtitle="Manipulation techniques detected, sorted by frequency" />
         <TechniqueChart byTechnique={stats?.byTechnique ?? {}} />
-
-        {/* Section 3b: Algorithm vs Choice */}
-        <SectionHeader title="Algorithm vs Choice" subtitle="Where does manipulation come from — the algorithm's recommendations or accounts your child follows?" />
-        <AlgorithmVsChoice records={records} />
 
         {/* Section 4: Time-of-Day Heatmap */}
         <SectionHeader title="Time-of-Day Heatmap" subtitle="When does your child encounter the most manipulation? Hour-by-hour intensity." />
@@ -589,6 +603,16 @@ function AlgorithmVsChoice({ records }: { records: ForensicRecord[] }) {
             {followingPct}% of detected manipulation came from accounts being followed.
             Most manipulation comes from accounts the user chose to follow, not algorithmic recommendations.
           </span>
+        )}
+        {forYouPct > 70 && (
+          <div style={{ marginTop: 10, fontSize: 13, color: C.red, fontWeight: 600 }}>
+            The platform's algorithm is the primary source of manipulation in your child's feed. This is an editorial decision by the platform.
+          </div>
+        )}
+        {followingPct > 70 && (
+          <div style={{ marginTop: 10, fontSize: 13, color: C.green, fontWeight: 600 }}>
+            Most manipulation comes from accounts being followed. Consider reviewing the follow list together.
+          </div>
         )}
       </div>
 
