@@ -4,7 +4,10 @@
 // Children never see real comments, even for a millisecond.
 
 import type { CommentRewriteResult, RewrittenComment } from '../analysis/comment-rewriter';
+import type { RawComment } from '../analysis/comment-scorer';
 import type { Mode } from '../types/mode';
+import { getCommentsContainer, getMetricElements } from './platforms/metric-selectors';
+import { extractComments } from './platforms/comment-extractors';
 
 // --- Platform text size detection ---
 
@@ -420,4 +423,87 @@ export function blockCommentPosting(platform: string): void {
       el.dataset.fwPostBlocked = 'true';
     }
   }
+}
+
+// --- Comment container watcher ---
+// Detects comment containers via MutationObserver + fallback polling.
+// IMMEDIATELY hides comments on detection, then invokes callback for pipeline processing.
+
+const FALLBACK_POLL_INTERVAL_MS = 2000;
+const FALLBACK_MAX_ATTEMPTS = 10;
+
+export function watchForComments(
+  platform: string,
+  mode: Mode,
+  onCommentsFound: (container: HTMLElement, comments: RawComment[]) => void,
+): () => void {
+  if (mode === 'adult') return () => {};
+
+  let found = false;
+  let observer: MutationObserver | null = null;
+  let fallbackTimer: ReturnType<typeof setInterval> | null = null;
+  let fallbackAttempts = 0;
+
+  function handleContainerDetected(): void {
+    if (found) return;
+
+    const container = getCommentsContainer(platform);
+    if (!container) return;
+    if (container.dataset.fwHidden === 'true') return;
+
+    found = true;
+    cleanup();
+
+    // CRITICAL: Hide immediately — before any API call
+    hideCommentsImmediately(container, mode);
+
+    // Hide engagement metrics
+    hideEngagementMetrics(getMetricElements(platform));
+
+    // Block comment posting for child/teen
+    blockCommentPosting(platform);
+
+    // Extract whatever comments are currently in the DOM
+    const comments = extractComments(platform);
+
+    onCommentsFound(container, comments);
+  }
+
+  // Primary: MutationObserver
+  observer = new MutationObserver(() => {
+    handleContainerDetected();
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+
+  // Check if container is already present
+  handleContainerDetected();
+
+  // Fallback: periodic polling for platforms that load comments late
+  fallbackTimer = setInterval(() => {
+    fallbackAttempts++;
+    handleContainerDetected();
+    if (fallbackAttempts >= FALLBACK_MAX_ATTEMPTS) {
+      if (fallbackTimer !== null) {
+        clearInterval(fallbackTimer);
+        fallbackTimer = null;
+      }
+    }
+  }, FALLBACK_POLL_INTERVAL_MS);
+
+  function cleanup(): void {
+    if (observer) {
+      observer.disconnect();
+      observer = null;
+    }
+    if (fallbackTimer !== null) {
+      clearInterval(fallbackTimer);
+      fallbackTimer = null;
+    }
+  }
+
+  return cleanup;
 }
