@@ -7,10 +7,19 @@ import { incrementNeutralized, getSettings } from '../storage/settings';
 import { logForensicEvent } from '../forensics/logger';
 import { addVerdict } from '../forensics/feedback-store';
 import { updateAuthorProfile } from '../forensics/author-store';
+import { logScanEvent, purgeScanEvents } from '../forensics/scan-log';
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[FeelingWise] Extension installed');
   chrome.action.setBadgeText({ text: '' });
+  chrome.alarms.create('scan-purge', { periodInMinutes: 60 * 24 }); // once per day
+});
+
+// Purge old scan events daily
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'scan-purge') {
+    purgeScanEvents(30).catch(() => {}); // Keep 30 days of scan data
+  }
 });
 
 // Handle messages from content scripts and popup.
@@ -23,6 +32,13 @@ chrome.runtime.onInstalled.addListener(() => {
 //
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 chrome.runtime.onMessage.addListener((message: { type: string; payload?: any }, _sender, sendResponse) => {
+  if (message.type === 'SCAN_LOG' && message.payload) {
+    logScanEvent(message.payload).catch(err => {
+      console.warn('[FeelingWise] Scan log failed:', err);
+    });
+    return false; // Fire-and-forget
+  }
+
   if (message.type === 'NEUTRALIZATION_COMPLETE') {
     incrementNeutralized().then(async () => {
       const settings = await getSettings();

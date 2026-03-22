@@ -14,6 +14,7 @@ import { ContentInterceptor } from './interceptor';
 import { PostContent } from '../types/post';
 import { PlatformAdapter } from './platforms/adapter';
 import { process as processPipeline, PipelineResult } from '../core/pipeline';
+import { ScanEvent } from '../forensics/scan-log';
 import { getSettings } from '../storage/settings';
 import { injectIntoElement } from './injector';
 import { ProcessingQueue } from './queue';
@@ -52,6 +53,20 @@ function isInViewport(el: HTMLElement): boolean {
 }
 
 function onProcessingResult(post: PostContent, result: PipelineResult): void {
+  // Log scan event for ALL processed posts (pass, neutralize, flag)
+  // This gives the denominator for dashboard metrics
+  chrome.runtime.sendMessage({
+    type: 'SCAN_LOG',
+    payload: {
+      timestamp: new Date().toISOString(),
+      platform: post.platform,
+      feedSource: post.feedSource ?? 'unknown',
+      author: post.author ?? 'unknown',
+      postId: post.id,
+      action: result.action,
+    } satisfies ScanEvent,
+  }).catch(() => {}); // Non-critical
+
   if ((result.action === 'neutralize' || result.action === 'flag') && result.neutralized && activeAdapter) {
     // Get mode for injection styling
     getSettings().then(settings => {
