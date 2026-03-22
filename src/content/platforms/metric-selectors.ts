@@ -90,7 +90,7 @@ export function getCommentsContainer(platform: string): HTMLElement | null {
     case 'tiktok': {
       // Primary: data-e2e (may or may not work depending on TikTok build)
       const primary = document.querySelector<HTMLElement>('[data-e2e="comment-list"]');
-      if (primary) return primary;
+      if (primary && primary.children.length >= 1) return primary;
 
       // Secondary: look for UL inside the comment panel overlay
       const commentPanel = document.querySelector<HTMLElement>(
@@ -105,6 +105,7 @@ export function getCommentsContainer(platform: string): HTMLElement | null {
       const allULs = document.querySelectorAll<HTMLElement>('ul');
       for (const ul of allULs) {
         if (ul.children.length < 2) continue;
+        if (ul.dataset.fwProcessed === 'true') continue;
         let commentLike = 0;
         for (const child of Array.from(ul.children).slice(0, 5)) {
           if (child instanceof HTMLElement && child.querySelector('a[href*="/@"]')) {
