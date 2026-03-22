@@ -3,6 +3,23 @@
 import { Mode } from '../types/mode';
 import { sha256 } from '../forensics/hasher';
 
+export type EducationalTopic =
+  | 'science' | 'nature' | 'history' | 'math'
+  | 'languages' | 'philosophy' | 'arts' | 'technology';
+
+export interface VideoControls {
+  childCommentMode: 'hidden' | 'educational';
+  childHideMetrics: boolean;
+  childBlockPosting: boolean;
+  teenRewriteComments: boolean;
+  teenHideMetrics: boolean;
+  teenShowLessons: boolean;
+  adultCleanLanguage: boolean;
+  adultHideMetrics: boolean;
+  commentAnalysisCount: number;
+  educationalTopics: EducationalTopic[];
+}
+
 export interface FWSettings {
   mode: Mode;
 
@@ -36,6 +53,9 @@ export interface FWSettings {
   totalChecksAllTime: number;
   totalNeutralizedAllTime: number;
   estimatedCostAllTime: number;     // in USD cents, never resets
+
+  // Video platform controls (parent-configured, PIN-protected)
+  videoControls: VideoControls;
 }
 
 const SETTINGS_KEYS: (keyof FWSettings)[] = [
@@ -44,6 +64,7 @@ const SETTINGS_KEYS: (keyof FWSettings)[] = [
   'managedCredits', 'parentPin', 'dailyCap', 'deepScanEnabled', 'locale',
   'totalChecksToday', 'totalNeutralizedToday', 'totalTokensToday', 'estimatedCostToday', 'lastResetDate',
   'totalTokensAllTime', 'totalChecksAllTime', 'totalNeutralizedAllTime', 'estimatedCostAllTime',
+  'videoControls',
 ];
 
 const DEFAULTS: FWSettings = {
@@ -67,6 +88,18 @@ const DEFAULTS: FWSettings = {
   totalChecksAllTime: 0,
   totalNeutralizedAllTime: 0,
   estimatedCostAllTime: 0,
+  videoControls: {
+    childCommentMode: 'educational',
+    childHideMetrics: true,
+    childBlockPosting: true,
+    teenRewriteComments: true,
+    teenHideMetrics: true,
+    teenShowLessons: true,
+    adultCleanLanguage: false,
+    adultHideMetrics: false,
+    commentAnalysisCount: 15,
+    educationalTopics: ['science', 'nature', 'history', 'math', 'languages', 'philosophy'],
+  },
 };
 
 export async function getSettings(): Promise<FWSettings> {
@@ -77,6 +110,11 @@ export async function getSettings(): Promise<FWSettings> {
       if (result[key] !== undefined) {
         (settings as unknown as Record<string, unknown>)[key] = result[key];
       }
+    }
+
+    // Migration: add videoControls defaults for existing users
+    if (!settings.videoControls) {
+      settings.videoControls = { ...DEFAULTS.videoControls };
     }
 
     // Reset daily counters if new day
