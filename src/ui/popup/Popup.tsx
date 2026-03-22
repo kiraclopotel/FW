@@ -1,7 +1,8 @@
 import { StrictMode, useState, useEffect, CSSProperties } from 'react';
 import { createRoot } from 'react-dom/client';
-import { FWSettings, getSettings, saveSettings, resetDailyStats } from '../../storage/settings';
+import { FWSettings, getSettings, saveSettings, resetDailyStats, verifyPin, setPin } from '../../storage/settings';
 import { t, setLocale, Locale } from '../../i18n';
+import { Mode } from '../../types/mode';
 
 // ─── Color palette ───
 const C = {
@@ -79,9 +80,17 @@ function hasApiKey(s: FWSettings): boolean {
 // ─── Screens ───
 type Screen = 'setup' | 'main' | 'settings';
 
+// Restrictiveness order: child is most restrictive, adult is least
+const RESTRICTIVENESS: Record<Mode, number> = { child: 0, teen: 1, adult: 2 };
+
+function needsPin(settings: FWSettings): boolean {
+  return !!(settings.parentPin && (settings.mode === 'child' || settings.mode === 'teen'));
+}
+
 function Popup() {
   const [settings, setSettings] = useState<FWSettings | null>(null);
   const [screen, setScreen] = useState<Screen>('setup');
+  const [pinCallback, setPinCallback] = useState<(() => void) | null>(null);
 
   useEffect(() => {
     getSettings().then(s => {
@@ -114,6 +123,14 @@ function Popup() {
     setSettings((prev: FWSettings | null) => prev ? { ...prev, ...partial } : prev);
   };
 
+  const requirePin = (action: () => void) => {
+    if (needsPin(settings)) {
+      setPinCallback(() => action);
+    } else {
+      action();
+    }
+  };
+
   const base: CSSProperties = {
     width: 320,
     minHeight: 200,
@@ -122,6 +139,7 @@ function Popup() {
     fontFamily: font,
     fontSize: 13,
     margin: 0,
+    position: 'relative',
   };
 
   return (
@@ -130,10 +148,23 @@ function Popup() {
         <SetupScreen settings={settings} update={update} onDone={() => setScreen('main')} />
       )}
       {screen === 'main' && (
-        <MainScreen settings={settings} update={update} onSettings={() => setScreen('settings')} />
+        <MainScreen settings={settings} update={update} onSettings={() => requirePin(() => setScreen('settings'))} onDashboard={() => requirePin(() => chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') }))} onModeChange={(m: Mode) => {
+          const isLessRestrictive = RESTRICTIVENESS[m] > RESTRICTIVENESS[settings.mode];
+          if (isLessRestrictive && needsPin(settings)) {
+            requirePin(() => update({ mode: m }));
+          } else {
+            update({ mode: m });
+          }
+        }} />
       )}
       {screen === 'settings' && (
         <SettingsScreen settings={settings} update={update} onBack={() => setScreen('main')} onChangeKey={() => setScreen('setup')} />
+      )}
+      {pinCallback && (
+        <PinOverlay
+          onSuccess={() => { pinCallback(); setPinCallback(null); }}
+          onCancel={() => setPinCallback(null)}
+        />
       )}
     </div>
   );
@@ -299,10 +330,12 @@ function SetupScreen({ settings, update, onDone }: {
 // ════════════════════════════════════
 // SCREEN 2: MAIN DASHBOARD
 // ════════════════════════════════════
-function MainScreen({ settings, update, onSettings }: {
+function MainScreen({ settings, update, onSettings, onDashboard, onModeChange }: {
   settings: FWSettings;
   update: (p: Partial<FWSettings>) => Promise<void>;
   onSettings: () => void;
+  onDashboard: () => void;
+  onModeChange: (m: Mode) => void;
 }) {
   const isActive = hasApiKey(settings);
   const modes = ['child', 'teen', 'adult'] as const;
@@ -375,7 +408,7 @@ function MainScreen({ settings, update, onSettings }: {
         {modes.map(m => (
           <button
             key={m}
-            onClick={() => update({ mode: m })}
+            onClick={() => onModeChange(m)}
             style={{
               flex: 1,
               padding: '10px 4px',
@@ -405,7 +438,7 @@ function MainScreen({ settings, update, onSettings }: {
       {/* View Dashboard button */}
       <div style={{ padding: '0 16px 12px' }}>
         <button
-          onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') })}
+          onClick={onDashboard}
           style={{
             width: '100%',
             padding: '8px 0',
@@ -642,6 +675,9 @@ function SettingsScreen({ settings, update, onBack, onChangeKey }: {
           </div>
         </div>
 
+        {/* Parent PIN */}
+        <PinSetup settings={settings} update={update} />
+
         {/* About */}
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>{t('about')}</div>
@@ -724,10 +760,241 @@ function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: b
   );
 }
 
+// ════════════════════════════════════
+// PIN SETUP (in Settings screen)
+// ════════════════════════════════════
+function PinSetup({ settings, update }: { settings: FWSettings; update: (p: Partial<FWSettings>) => Promise<void> }) {
+  const [phase, setPhase] = useState<'idle' | 'verify-current' | 'enter-new' | 'confirm-new'>('idle');
+  const [newPin, setNewPin] = useState('');
+  const [digits, setDigits] = useState(['', '', '', '']);
+  const [error, setError] = useState('');
+  const inputRefs = [
+    useState<HTMLInputElement | null>(null),
+    useState<HTMLInputElement | null>(null),
+    useState<HTMLInputElement | null>(null),
+    useState<HTMLInputElement | null>(null),
+  ];
+
+  const hasPin = !!settings.parentPin;
+
+  const resetForm = () => {
+    setPhase('idle');
+    setNewPin('');
+    setDigits(['', '', '', '']);
+    setError('');
+  };
+
+  const handleStart = () => {
+    setDigits(['', '', '', '']);
+    setError('');
+    if (hasPin) {
+      setPhase('verify-current');
+    } else {
+      setPhase('enter-new');
+    }
+  };
+
+  const handleDigit = async (index: number, value: string) => {
+    if (!/^\d?$/.test(value)) return;
+    const next = [...digits];
+    next[index] = value;
+    setDigits(next);
+    setError('');
+
+    if (value && index < 3) {
+      inputRefs[index + 1][0]?.focus();
+    }
+
+    if (value && index === 3) {
+      const pin = next.join('');
+      if (phase === 'verify-current') {
+        const ok = await verifyPin(pin);
+        if (ok) {
+          setDigits(['', '', '', '']);
+          setPhase('enter-new');
+        } else {
+          setError('Wrong PIN');
+          setTimeout(() => { setDigits(['', '', '', '']); setError(''); inputRefs[0][0]?.focus(); }, 600);
+        }
+      } else if (phase === 'enter-new') {
+        setNewPin(pin);
+        setDigits(['', '', '', '']);
+        setPhase('confirm-new');
+        setTimeout(() => inputRefs[0][0]?.focus(), 50);
+      } else if (phase === 'confirm-new') {
+        if (pin === newPin) {
+          await setPin(pin);
+          const s = await getSettings();
+          await update({ parentPin: s.parentPin });
+          resetForm();
+        } else {
+          setError('PINs do not match');
+          setTimeout(() => { setDigits(['', '', '', '']); setError(''); setPhase('enter-new'); setNewPin(''); inputRefs[0][0]?.focus(); }, 600);
+        }
+      }
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) {
+      inputRefs[index - 1][0]?.focus();
+    }
+    if (e.key === 'Escape') resetForm();
+  };
+
+  const boxStyle: CSSProperties = {
+    width: 36, height: 42, textAlign: 'center', fontSize: 18, fontWeight: 600,
+    background: C.card, color: C.text, border: `1px solid ${error ? C.red : C.border}`,
+    borderRadius: 6, outline: 'none', fontFamily: font,
+  };
+
+  const label = phase === 'verify-current' ? 'Enter current PIN'
+    : phase === 'enter-new' ? (hasPin ? 'Enter new PIN' : 'Set a 4-digit PIN')
+    : phase === 'confirm-new' ? 'Confirm PIN' : '';
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>Parent PIN</div>
+      {phase === 'idle' ? (
+        <button
+          onClick={handleStart}
+          style={{
+            width: '100%', padding: '8px 0', fontSize: 12, fontWeight: 500,
+            background: 'transparent', color: C.teal, border: `1px solid ${C.border}`,
+            borderRadius: 4, cursor: 'pointer', fontFamily: font, transition: 'all 0.15s ease',
+          }}
+        >
+          {hasPin ? 'Change PIN' : 'Set Parent PIN'}
+        </button>
+      ) : (
+        <div style={{
+          background: C.card, borderRadius: 8, padding: 14, textAlign: 'center',
+          animation: error ? 'fw-shake 0.4s ease' : undefined,
+        }}>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{label}</div>
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 8 }}>
+            {digits.map((d, i) => (
+              <input
+                key={`${phase}-${i}`}
+                ref={el => { inputRefs[i][1](el); }}
+                type="tel"
+                inputMode="numeric"
+                maxLength={1}
+                value={d}
+                onChange={e => handleDigit(i, e.target.value)}
+                onKeyDown={e => handleKeyDown(i, e)}
+                autoFocus={i === 0}
+                style={boxStyle}
+              />
+            ))}
+          </div>
+          {error && <div style={{ fontSize: 11, color: C.red, marginBottom: 4 }}>{error}</div>}
+          <div onClick={resetForm} style={{ fontSize: 11, color: C.muted, cursor: 'pointer' }}>Cancel</div>
+        </div>
+      )}
+      <div style={{ fontSize: 11, color: C.muted, marginTop: 4, lineHeight: '1.4' }}>
+        {hasPin ? 'PIN is set. Required to weaken protection mode.' : 'Set a PIN to prevent children from changing protection mode.'}
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════
+// PIN OVERLAY
+// ════════════════════════════════════
+function PinOverlay({ onSuccess, onCancel }: {
+  onSuccess: () => void;
+  onCancel: () => void;
+}) {
+  const [digits, setDigits] = useState(['', '', '', '']);
+  const [error, setError] = useState(false);
+  const inputRefs = [
+    useState<HTMLInputElement | null>(null),
+    useState<HTMLInputElement | null>(null),
+    useState<HTMLInputElement | null>(null),
+    useState<HTMLInputElement | null>(null),
+  ];
+
+  const handleDigit = async (index: number, value: string) => {
+    if (!/^\d?$/.test(value)) return;
+    const next = [...digits];
+    next[index] = value;
+    setDigits(next);
+    setError(false);
+
+    if (value && index < 3) {
+      inputRefs[index + 1][0]?.focus();
+    }
+
+    // Auto-verify when all 4 digits entered
+    if (value && index === 3) {
+      const pin = next.join('');
+      const ok = await verifyPin(pin);
+      if (ok) {
+        onSuccess();
+      } else {
+        setError(true);
+        setTimeout(() => { setDigits(['', '', '', '']); setError(false); inputRefs[0][0]?.focus(); }, 600);
+      }
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) {
+      inputRefs[index - 1][0]?.focus();
+    }
+    if (e.key === 'Escape') onCancel();
+  };
+
+  const boxStyle: CSSProperties = {
+    width: 40, height: 48, textAlign: 'center', fontSize: 20, fontWeight: 600,
+    background: C.card, color: C.text, border: `1px solid ${error ? C.red : C.border}`,
+    borderRadius: 8, outline: 'none', fontFamily: font,
+  };
+
+  return (
+    <div style={{
+      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100,
+      background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div style={{
+        background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24,
+        textAlign: 'center', animation: error ? 'fw-shake 0.4s ease' : undefined,
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 16, color: C.text }}>Enter PIN</div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 12 }}>
+          {digits.map((d, i) => (
+            <input
+              key={i}
+              ref={el => { inputRefs[i][1](el); }}
+              type="tel"
+              inputMode="numeric"
+              maxLength={1}
+              value={d}
+              onChange={e => handleDigit(i, e.target.value)}
+              onKeyDown={e => handleKeyDown(i, e)}
+              autoFocus={i === 0}
+              style={boxStyle}
+            />
+          ))}
+        </div>
+        {error && <div style={{ fontSize: 11, color: C.red, marginBottom: 8 }}>Wrong PIN</div>}
+        <div
+          onClick={onCancel}
+          style={{ fontSize: 12, color: C.muted, cursor: 'pointer', marginTop: 4 }}
+        >
+          Cancel
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Pulse animation ───
 const style = document.createElement('style');
 style.textContent = `@keyframes fw-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-@keyframes fw-active-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`;
+@keyframes fw-active-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes fw-shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }`;
 document.head.appendChild(style);
 
 // ─── Mount ───

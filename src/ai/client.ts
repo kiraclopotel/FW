@@ -28,8 +28,6 @@ export async function callAI(system: string, user: string, fastMode = true): Pro
     return '';
   }
 
-  await incrementChecks();
-
   switch (settings.apiProvider) {
     case 'anthropic':
       return callAnthropic(system, user, settings.anthropicApiKey, fastMode);
@@ -80,7 +78,9 @@ async function callAnthropic(system: string, user: string, apiKey: string, fast:
     if (data.usage) {
       await trackTokenUsage(data.usage.input_tokens || 0, data.usage.output_tokens || 0, 'anthropic');
     }
-    return data.content?.[0]?.text ?? '';
+    const text = data.content?.[0]?.text ?? '';
+    if (text) await incrementChecks();
+    return text;
   } catch {
     return '';
   }
@@ -114,7 +114,9 @@ async function callOpenAI(system: string, user: string, apiKey: string, fast: bo
     if (data.usage) {
       await trackTokenUsage(data.usage.prompt_tokens || 0, data.usage.completion_tokens || 0, 'openai');
     }
-    return data.choices?.[0]?.message?.content ?? '';
+    const text = data.choices?.[0]?.message?.content ?? '';
+    if (text) await incrementChecks();
+    return text;
   } catch {
     return '';
   }
@@ -149,7 +151,9 @@ async function callDeepSeek(system: string, user: string, apiKey: string, fast: 
     if (data.usage) {
       await trackTokenUsage(data.usage.prompt_tokens || 0, data.usage.completion_tokens || 0, 'deepseek');
     }
-    return data.choices?.[0]?.message?.content ?? '';
+    const text = data.choices?.[0]?.message?.content ?? '';
+    if (text) await incrementChecks();
+    return text;
   } catch {
     return '';
   }
@@ -180,7 +184,9 @@ async function callGemini(system: string, user: string, apiKey: string, fast: bo
     if (data.usageMetadata) {
       await trackTokenUsage(data.usageMetadata.promptTokenCount || 0, data.usageMetadata.candidatesTokenCount || 0, 'gemini');
     }
-    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    if (text) await incrementChecks();
+    return text;
   } catch {
     return '';
   }
