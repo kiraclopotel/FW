@@ -341,13 +341,9 @@ export function initVideoPipeline(platform: Platform): () => void {
       hideCommentsImmediately(container, mode);
     }
 
-    // Block comment posting NOW that the comment panel exists
+    // Block comment posting immediately — child mode protects first
     if (mode === 'child') {
-      getSettings().then(settings => {
-        if (settings.videoControls.childBlockPosting) {
-          blockCommentPosting(platform);
-        }
-      });
+      blockCommentPosting(platform);
     }
 
     // Run comment pipeline (async — container is already hidden)
