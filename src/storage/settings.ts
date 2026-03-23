@@ -11,6 +11,7 @@ export interface VideoControls {
   childCommentMode: 'hidden' | 'educational';
   childHideMetrics: boolean;
   childBlockPosting: boolean;
+  childBlockActions: boolean;
   teenRewriteComments: boolean;
   teenHideMetrics: boolean;
   teenShowLessons: boolean;
@@ -92,6 +93,7 @@ const DEFAULTS: FWSettings = {
     childCommentMode: 'educational',
     childHideMetrics: true,
     childBlockPosting: true,
+    childBlockActions: true,
     teenRewriteComments: true,
     teenHideMetrics: true,
     teenShowLessons: true,

@@ -1060,6 +1060,10 @@ function VideoControlsSection({ settings, update }: {
               <span style={{ fontSize: 12 }}>Block comment posting</span>
               <ToggleSwitch checked={vc.childBlockPosting} onChange={v => updateVC({ childBlockPosting: v })} />
             </div>
+            <div style={toggleRow}>
+              <span style={{ fontSize: 12 }}>Hide action buttons (like, comment, share)</span>
+              <ToggleSwitch checked={vc.childBlockActions} onChange={v => updateVC({ childBlockActions: v })} />
+            </div>
 
             {/* Educational topics (only when educational mode) */}
             {vc.childCommentMode === 'educational' && (

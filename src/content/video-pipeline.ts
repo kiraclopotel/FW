@@ -20,10 +20,12 @@ import { scoreAndRankComments } from '../analysis/comment-scorer';
 import { generateChildComments, rewriteTeenComments } from '../analysis/comment-rewriter';
 import {
   hideCommentsImmediately,
+  hideTikTokCommentsDirectCSS,
   injectChildEducationalOverlay,
   injectTeenRewrittenComments,
   hideEngagementMetrics,
   blockCommentPosting,
+  blockActionButtons,
 } from './video-comment-injector';
 
 // ─── Module-level state ───
@@ -31,6 +33,7 @@ import {
 let cachedMode: Mode = 'child'; // Safest default for synchronous access
 let currentPipelineId = '';
 let metricPollTimer: ReturnType<typeof setInterval> | null = null;
+let tiktokChildCleanup: (() => void) | null = null;
 
 function getCachedMode(): Mode {
   return cachedMode;
@@ -123,6 +126,10 @@ async function runImmediateActions(platform: Platform): Promise<void> {
   if (mode === 'child' && videoControls.childBlockPosting) {
     blockCommentPosting(platform);
   }
+
+  if (mode === 'child' && videoControls.childBlockActions) {
+    blockActionButtons(platform);
+  }
 }
 
 // ─── Metric polling ───
@@ -154,6 +161,11 @@ function startMetricPolling(platform: Platform): void {
       // Also re-check comment input blocking (comment panel may have appeared)
       if (mode === 'child' && settings.videoControls.childBlockPosting) {
         blockCommentPosting(platform);
+      }
+
+      // Re-check action button blocking for new videos
+      if (mode === 'child' && settings.videoControls.childBlockActions) {
+        blockActionButtons(platform);
       }
     } catch {
       // Non-critical — metric polling failure should never break anything
@@ -201,7 +213,19 @@ async function runCommentPipeline(
 
   if (currentPipelineId !== pipelineId) return; // Stale check
 
-  const container = getCommentsContainer(platform) ?? getDiscoveredCommentsContainer(platform);
+  let container: HTMLElement | null;
+  if (platform === 'tiktok') {
+    // TikTok: find the comment area using the actual DOM structure
+    container = document.querySelector<HTMLElement>(
+      '[data-e2e="comment-panel"], [data-e2e="browse-comment"]'
+    );
+    if (!container) {
+      const firstComment = document.querySelector<HTMLElement>('[data-e2e="comment-level-1"]');
+      container = firstComment?.parentElement ?? null;
+    }
+  } else {
+    container = getCommentsContainer(platform) ?? getDiscoveredCommentsContainer(platform);
+  }
   if (!container) {
     logScanEvent(platform, 'pass', videoTitle);
     return;
@@ -259,6 +283,12 @@ async function runCommentPipeline(
 // --- SPA navigation handling ---
 
 function onNavigate(platform: Platform): void {
+  // Clean up TikTok child mode direct CSS + observer
+  if (tiktokChildCleanup) {
+    tiktokChildCleanup();
+    tiktokChildCleanup = null;
+  }
+
   // Remove any injected overlays from previous video (both old and new class names)
   document.querySelectorAll('.fw-overlay, .fw-comment-overlay, .fw-comments-placeholder').forEach(el => el.remove());
 
@@ -339,6 +369,28 @@ export function initVideoPipeline(platform: Platform): () => void {
   // ═══ PATH B: Comment detection (wait for container to appear) ═══
   function tryDetectComments(): void {
     if (!modeReady) return; // Wait until settings have loaded to avoid defaulting to child mode
+
+    // TikTok child mode: use direct CSS targeting, bypass container detection entirely
+    if (platform === 'tiktok' && getCachedMode() === 'child') {
+      if (!tiktokChildCleanup) {
+        tiktokChildCleanup = hideTikTokCommentsDirectCSS();
+        blockCommentPosting('tiktok');
+        const title = getCurrentVideoTitle('tiktok');
+        logScanEvent('tiktok', 'comments-hidden', title);
+        console.log('[FeelingWise] TikTok child mode: comments hidden via direct CSS targeting');
+
+        // Also run the educational pipeline if configured
+        getSettings().then(s => {
+          if (s.videoControls.childCommentMode === 'educational') {
+            const desc = getCurrentVideoDescription('tiktok');
+            runCommentPipeline('tiktok', title, desc)
+              .catch(err => console.error('[FeelingWise] Comment pipeline error:', err));
+          }
+        });
+      }
+      return; // Skip all container-based logic
+    }
+
     const container = getCommentsContainer(platform) ?? getDiscoveredCommentsContainer(platform);
     if (!container) return;
     if (container.dataset.fwProcessed === 'true') return;
@@ -413,6 +465,10 @@ export function initVideoPipeline(platform: Platform): () => void {
   }
 
   return () => {
+    if (tiktokChildCleanup) {
+      tiktokChildCleanup();
+      tiktokChildCleanup = null;
+    }
     observer?.disconnect();
     observer = null;
     if (fallbackTimer !== null) {
