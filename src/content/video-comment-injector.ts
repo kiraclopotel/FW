@@ -110,6 +110,109 @@ export function hideCommentsImmediately(
   observer.observe(commentsContainer, { attributes: true, childList: true });
 }
 
+// ─── TikTok child mode: direct CSS comment hiding ───
+// Bypasses broken container detection entirely. Targets the actual comment
+// elements using the same data-e2e selectors the TikTok adapter uses.
+
+let tiktokCommentObserver: MutationObserver | null = null;
+
+export function hideTikTokCommentsDirectCSS(): () => void {
+  // Inject persistent CSS — survives React re-renders
+  if (!document.querySelector('#fw-tiktok-child-hide-css')) {
+    const style = document.createElement('style');
+    style.id = 'fw-tiktok-child-hide-css';
+    style.textContent = `
+      [data-e2e="comment-level-1"],
+      [data-e2e="comment-item"] {
+        display: none !important;
+        visibility: hidden !important;
+      }
+    `;
+    document.head.appendChild(style);
+    console.log('[FeelingWise] TikTok child mode: comment CSS injected');
+  }
+
+  // Belt + suspenders: also set inline styles on existing comments
+  document.querySelectorAll<HTMLElement>(
+    '[data-e2e="comment-level-1"], [data-e2e="comment-item"]'
+  ).forEach(el => {
+    el.style.setProperty('display', 'none', 'important');
+  });
+
+  // MutationObserver for lazy-loaded comments
+  if (!tiktokCommentObserver) {
+    tiktokCommentObserver = new MutationObserver(() => {
+      document.querySelectorAll<HTMLElement>(
+        '[data-e2e="comment-level-1"], [data-e2e="comment-item"]'
+      ).forEach(el => {
+        if (el.style.display !== 'none') {
+          el.style.setProperty('display', 'none', 'important');
+        }
+      });
+    });
+    tiktokCommentObserver.observe(document.body, { childList: true, subtree: true });
+  }
+
+  // Return cleanup function
+  return () => {
+    const styleEl = document.querySelector('#fw-tiktok-child-hide-css');
+    if (styleEl) styleEl.remove();
+    if (tiktokCommentObserver) {
+      tiktokCommentObserver.disconnect();
+      tiktokCommentObserver = null;
+    }
+  };
+}
+
+// ─── Block action buttons (like, comment, share, bookmark icons) ───
+
+const ACTION_ICON_SELECTORS: Record<string, string[]> = {
+  tiktok: [
+    '[data-e2e="like-icon"]',
+    '[data-e2e="comment-icon"]',
+    '[data-e2e="share-icon"]',
+    '[data-e2e="favorite-icon"]',
+  ],
+};
+
+export function blockActionButtons(platform: string): void {
+  const selectors = ACTION_ICON_SELECTORS[platform];
+  if (!selectors) return;
+
+  let found = false;
+  for (const sel of selectors) {
+    document.querySelectorAll<HTMLElement>(sel).forEach(iconSpan => {
+      const btn = iconSpan.closest('button');
+      const target = btn ?? iconSpan;
+      if (target.dataset.fwActionBlocked === 'true') return;
+      target.dataset.fwActionBlocked = 'true';
+      target.style.setProperty('display', 'none', 'important');
+      found = true;
+    });
+  }
+
+  if (found) {
+    injectActionButtonHidingCSS();
+    console.log(`[FeelingWise] Action buttons blocked on ${platform}`);
+  }
+}
+
+let actionCSSInjected = false;
+
+function injectActionButtonHidingCSS(): void {
+  if (actionCSSInjected) return;
+  actionCSSInjected = true;
+
+  const style = document.createElement('style');
+  style.id = 'fw-action-hiding-css';
+  style.textContent = `
+    [data-fw-action-blocked="true"] {
+      display: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 let commentCSSInjected = false;
 
 function injectCommentHidingCSS(): void {
