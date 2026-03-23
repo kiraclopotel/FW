@@ -3,7 +3,7 @@
 export type TechniqueName =
   | 'fear-appeal' | 'anger-trigger' | 'shame-attack' | 'false-urgency'
   | 'bandwagon' | 'scapegoating' | 'fomo' | 'toxic-positivity'
-  | 'misleading-format' | 'combined';
+  | 'misleading-format' | 'combined' | 'profanity';
 
 export interface TechniqueResult {
   technique: TechniqueName;

@@ -59,10 +59,15 @@ export class InstagramAdapter implements PlatformAdapter {
 
     try {
       el.dataset.fwOriginal = el.innerHTML;
-      // Find the innermost text-bearing span to preserve layout
-      const innerSpan = el.querySelector('span');
-      if (innerSpan) {
-        innerSpan.textContent = newText;
+      // Replace text nodes only, preserving child elements (author links, etc.)
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      const textNodes: Text[] = [];
+      while (walker.nextNode()) textNodes.push(walker.currentNode as Text);
+      if (textNodes.length > 0) {
+        textNodes[0].textContent = newText;
+        for (let i = 1; i < textNodes.length; i++) {
+          textNodes[i].textContent = '';
+        }
       } else {
         el.textContent = newText;
       }

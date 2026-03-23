@@ -74,7 +74,26 @@ export const misleadingFormatClassifier: TechniqueClassifier = {
       evidence.push(`emoji density ${emojiDensity.toFixed(2)} (${emojiCount} emojis)`);
     }
 
-    // 3. Exclamation density
+    // 3. Title Case manipulation: 5+ consecutive Title Case words suggest headline-style manipulation
+    let maxConsecutiveTitleCase = 0;
+    let currentStreak = 0;
+    for (const w of words) {
+      const cleaned = w.replace(/[^A-Za-z]/g, '');
+      if (cleaned.length >= 2 && /^[A-Z][a-z]/.test(cleaned)) {
+        currentStreak++;
+        if (currentStreak > maxConsecutiveTitleCase) {
+          maxConsecutiveTitleCase = currentStreak;
+        }
+      } else {
+        currentStreak = 0;
+      }
+    }
+    if (maxConsecutiveTitleCase >= 5) {
+      score += 2;
+      evidence.push(`${maxConsecutiveTitleCase} consecutive Title Case words`);
+    }
+
+    // 4. Exclamation density
     const exclCount = (text.match(/!/g) || []).length;
     // Count sentences by splitting on sentence-ending punctuation
     const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);

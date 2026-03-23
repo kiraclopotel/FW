@@ -123,6 +123,8 @@ CRITICAL DISTINCTIONS:
 
 When uncertain, lean toward NOT MANIPULATIVE.
 
+EXCEPTION: Gambling and betting advertisements directed at minors are always manipulative regardless of tone (techniques: false-urgency, fomo).
+
 STEP 2 — NEUTRALIZATION (only if manipulative):
 Rewrite the post to preserve the information while removing manipulation.
 - Keep the poster's natural voice — write as if they chose calmer words. Do NOT use "This account believes" or "This poster argues".

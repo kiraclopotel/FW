@@ -143,6 +143,7 @@ async function callDeepSeek(system: string, user: string, apiKey: string, fast: 
   notifyConnected();
   const model = fast ? 'deepseek-chat' : 'deepseek-reasoner';
   try {
+    const t0 = performance.now();
     const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -159,7 +160,9 @@ async function callDeepSeek(system: string, user: string, apiKey: string, fast: 
         ],
       }),
     });
+    const elapsed = performance.now() - t0;
     const data = await res.json();
+    console.log('[FeelingWise] DeepSeek API: ' + elapsed.toFixed(0) + 'ms, model: ' + model);
     if (data.error) {
       console.error('[FeelingWise] DeepSeek error:', data.error.message);
       return '';
