@@ -12,6 +12,7 @@
 import type { Platform } from '../types/post';
 import type { Mode } from '../types/mode';
 import { getSettings } from '../storage/settings';
+import { safeSendMessage, isContextAlive } from './context-guard';
 import { getCommentsContainer } from './platforms/metric-selectors';
 import { extractComments } from './platforms/comment-extractors';
 import { scoreAndRankComments } from '../analysis/comment-scorer';
@@ -80,21 +81,17 @@ function logScanEvent(
   action: 'comments-hidden' | 'comments-educational' | 'comments-rewritten' | 'pass',
   videoTitle: string,
 ): void {
-  try {
-    chrome.runtime.sendMessage({
-      type: 'SCAN_LOG',
-      payload: {
-        platform,
-        action,
-        feedSource: 'video' as const,
-        author: 'unknown',
-        postId: videoTitle.slice(0, 80),
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch {
-    // Logging failure must never break the pipeline.
-  }
+  safeSendMessage({
+    type: 'SCAN_LOG',
+    payload: {
+      platform,
+      action,
+      feedSource: 'video' as const,
+      author: 'unknown',
+      postId: videoTitle.slice(0, 80),
+      timestamp: new Date().toISOString(),
+    },
+  });
 }
 
 // ─── Immediate actions (metrics + posting) ───
@@ -135,6 +132,7 @@ function startMetricPolling(platform: Platform): void {
   if (metricPollTimer) return; // Already running
 
   metricPollTimer = setInterval(async () => {
+    if (!isContextAlive()) { stopMetricPolling(); return; }
     try {
       const settings = await getSettings();
       const mode = settings.mode;
@@ -314,12 +312,14 @@ export function initVideoPipeline(platform: Platform): () => void {
   let observer: MutationObserver | null = null;
   let fallbackTimer: ReturnType<typeof setInterval> | null = null;
   let fallbackAttempts = 0;
+  let modeReady = false;
 
   console.log(`[FeelingWise] Video pipeline initializing for ${platform}`);
 
   // ═══ PATH A: Immediate actions (don't wait for comments) ═══
   getSettings().then(settings => {
     cachedMode = settings.mode;
+    modeReady = true;
     // Run immediately
     runImmediateActions(platform);
     // Start polling for new metrics (catches swipe-to-new-video)
@@ -328,6 +328,7 @@ export function initVideoPipeline(platform: Platform): () => void {
 
   // ═══ PATH B: Comment detection (wait for container to appear) ═══
   function tryDetectComments(): void {
+    if (!modeReady) return; // Wait until settings have loaded to avoid defaulting to child mode
     const container = getCommentsContainer(platform);
     if (!container) return;
     if (container.dataset.fwProcessed === 'true') return;

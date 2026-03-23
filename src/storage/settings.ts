@@ -102,6 +102,8 @@ const DEFAULTS: FWSettings = {
   },
 };
 
+let _settingsCache: FWSettings | null = null;
+
 export async function getSettings(): Promise<FWSettings> {
   try {
     const result = await chrome.storage.local.get(SETTINGS_KEYS);
@@ -138,9 +140,10 @@ export async function getSettings(): Promise<FWSettings> {
       }
     }
 
+    _settingsCache = settings;
     return settings;
   } catch {
-    return { ...DEFAULTS };
+    return _settingsCache ?? { ...DEFAULTS };
   }
 }
 
