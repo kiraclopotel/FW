@@ -2,6 +2,7 @@
 // Single entry point for all AI calls. Supports Anthropic, OpenAI, DeepSeek, Gemini, and managed credits.
 
 import { getSettings, incrementChecks, consumeCredits, trackTokenUsage } from '../storage/settings';
+import { safeSendMessage } from '../content/context-guard';
 
 let notifiedConnected = false;
 
@@ -27,7 +28,7 @@ export async function callAI(system: string, user: string, fastMode = true): Pro
 
   if (!hasKey) {
     console.log('[FeelingWise] No API configured — PASS');
-    chrome.runtime.sendMessage({ type: 'FW_API_DISCONNECTED' }).catch(() => {});
+    safeSendMessage({ type: 'FW_API_DISCONNECTED' });
     return '';
   }
 
@@ -50,7 +51,7 @@ export async function callAI(system: string, user: string, fastMode = true): Pro
 function notifyConnected(): void {
   if (!notifiedConnected) {
     notifiedConnected = true;
-    chrome.runtime.sendMessage({ type: 'FW_API_CONNECTED' }).catch(() => {});
+    safeSendMessage({ type: 'FW_API_CONNECTED' });
   }
 }
 

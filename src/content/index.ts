@@ -20,6 +20,7 @@ import { injectIntoElement } from './injector';
 import { ProcessingQueue } from './queue';
 import { initVideoPipeline } from './video-pipeline';
 import { scanDOM } from './platforms/dom-scanner';
+import { safeSendMessage } from './context-guard';
 
 let activeAdapter: PlatformAdapter | null = null;
 let queue: ProcessingQueue | null = null;
@@ -42,24 +43,15 @@ function init(): void {
   // Video platforms: start the video pipeline (comment hiding, metrics, overlays)
   if (platform === 'youtube' || platform === 'tiktok' || platform === 'instagram') {
     initVideoPipeline(platform);
-  }
 
-  console.log(`[FeelingWise] active on ${platform}`);
-
-  // DOM diagnostic — runs once on load, exposes __FW_SCAN() for manual inspection
-  // Auto-scan after a short delay (let platform finish rendering)
-  setTimeout(() => {
-    if (platform) {
-      scanDOM(platform);
-    }
-  }, 3000);
-
-  // Manual scan for debugging: type __FW_SCAN() in DevTools console
-  if (platform) {
+    // DOM diagnostic — only needed on video platforms (discovers metrics/comments containers)
+    setTimeout(() => scanDOM(platform), 3000);
     const p = platform;
     (window as any).__FW_SCAN = () => scanDOM(p);
     console.log('[FeelingWise] Type __FW_SCAN() in console to run DOM diagnostic');
   }
+
+  console.log(`[FeelingWise] active on ${platform}`);
 }
 
 async function onPostDetected(post: PostContent): Promise<void> {
@@ -90,7 +82,7 @@ function isInViewport(el: HTMLElement): boolean {
 function onProcessingResult(post: PostContent, result: PipelineResult): void {
   // Log scan event for ALL processed posts (pass, neutralize, flag)
   // This gives the denominator for dashboard metrics
-  chrome.runtime.sendMessage({
+  safeSendMessage({
     type: 'SCAN_LOG',
     payload: {
       timestamp: new Date().toISOString(),
@@ -100,7 +92,7 @@ function onProcessingResult(post: PostContent, result: PipelineResult): void {
       postId: post.id,
       action: result.action,
     } satisfies ScanEvent,
-  }).catch(() => {}); // Non-critical
+  });
 
   if ((result.action === 'neutralize' || result.action === 'flag') && result.neutralized && activeAdapter) {
     // Get mode for injection styling
@@ -125,7 +117,7 @@ function onProcessingResult(post: PostContent, result: PipelineResult): void {
         }
       }
 
-      chrome.runtime.sendMessage({
+      safeSendMessage({
         type: 'FORENSIC_LOG',
         payload: {
           originalText: post.text,
@@ -146,7 +138,7 @@ function onProcessingResult(post: PostContent, result: PipelineResult): void {
             dailyCap: settings.dailyCap,
           },
         },
-      }).catch(err => { console.error('[FeelingWise] Forensic logging error:', err); });
+      });
     });
 
     // Notify service worker for stats tracking
@@ -154,7 +146,7 @@ function onProcessingResult(post: PostContent, result: PipelineResult): void {
       .filter(t => t.present)
       .map(t => t.technique);
 
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: 'NEUTRALIZATION_COMPLETE',
       payload: {
         postId: post.id,
@@ -162,7 +154,7 @@ function onProcessingResult(post: PostContent, result: PipelineResult): void {
         confidence: result.neutralized.analysis.overallConfidence,
       },
       timestamp: new Date().toISOString(),
-    }).catch(() => {}); // ignore if popup not open
+    });
 
     console.log(`[FeelingWise] ${result.action === 'flag' ? 'Flagged' : 'Neutralized'} post ${post.id}`);
   }
@@ -173,7 +165,7 @@ function onProcessingResult(post: PostContent, result: PipelineResult): void {
     const techniques = flagged && result.neutralized
       ? result.neutralized.analysis.techniques.filter(t => t.present).map(t => t.technique)
       : [];
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: 'AUTHOR_UPDATE',
       payload: {
         author: post.author,
@@ -181,7 +173,7 @@ function onProcessingResult(post: PostContent, result: PipelineResult): void {
         flagged,
         techniques,
       },
-    }).catch(() => {});
+    });
   }
 }
 
@@ -228,7 +220,7 @@ function showApiWarning(): void {
     fontFamily: 'system-ui, -apple-system, sans-serif',
   });
   div.addEventListener('click', () => {
-    chrome.runtime.sendMessage({ type: 'OPEN_POPUP' }).catch(() => {});
+    safeSendMessage({ type: 'OPEN_POPUP' });
     div.remove();
   });
   document.body.appendChild(div);

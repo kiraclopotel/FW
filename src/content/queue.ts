@@ -4,6 +4,7 @@
 
 import { PostContent } from '../types/post';
 import { PipelineResult } from '../core/pipeline';
+import { reportProcessingError } from './context-guard';
 
 export interface QueueItem {
   post: PostContent;
@@ -20,6 +21,7 @@ const STALE_MS = 30_000; // Drop items older than 30 seconds
 export class ProcessingQueue {
   private queue: QueueItem[] = [];
   private activeCount = 0;
+  private stopped = false;
   private processFn: ProcessFn;
   private onResult: (post: PostContent, result: PipelineResult) => void;
 
@@ -37,6 +39,8 @@ export class ProcessingQueue {
    * @param isVisible Whether the post is currently in the viewport
    */
   enqueue(post: PostContent, isVisible: boolean): void {
+    if (this.stopped) return;
+
     // Check if already in queue (by post ID)
     if (this.queue.some(item => item.post.id === post.id)) return;
 
@@ -61,6 +65,8 @@ export class ProcessingQueue {
    * Process items from the queue respecting concurrency limits.
    */
   private _drain(): void {
+    if (this.stopped) return;
+
     while (this.activeCount < MAX_CONCURRENT && this.queue.length > 0) {
       // Remove stale items
       const now = Date.now();
@@ -80,10 +86,16 @@ export class ProcessingQueue {
         })
         .catch(err => {
           console.error('[FeelingWise] Queue processing error:', err);
+          if (reportProcessingError(err)) {
+            this.stopped = true;
+            this.queue = [];
+          }
         })
         .finally(() => {
           this.activeCount--;
-          this._drain();
+          if (!this.stopped) {
+            this._drain();
+          }
         });
     }
   }
