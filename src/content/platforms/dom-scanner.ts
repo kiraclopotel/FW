@@ -321,7 +321,7 @@ function discoverCommentsContainer(platform: string): ContainerScanResult | null
     let commentLikeChildren = 0;
     for (const child of Array.from(container.children).slice(0, 8)) {
       if (!(child instanceof HTMLElement)) continue;
-      const hasAuthorLink = !!child.querySelector('a[href*="/@"], a[href*="/user/"], a[href*="/channel/"]');
+      const hasAuthorLink = !!child.querySelector('a[href*="/@"], a[href*="/user/"], a[href*="/channel/"], a[href^="/"][role="link"]');
       const textLength = child.textContent?.length ?? 0;
       if (hasAuthorLink && textLength > 15) commentLikeChildren++;
     }

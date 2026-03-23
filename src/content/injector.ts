@@ -22,6 +22,7 @@ const TECHNIQUE_NAMES: Record<TechniqueName, string> = {
   'toxic-positivity': 'Toxic Positivity',
   'misleading-format': 'Visual Manipulation',
   'combined': 'Multiple Techniques',
+  'profanity': 'Explicit Content',
 };
 
 const TECHNIQUE_EXPLANATIONS: Record<TechniqueName, string> = {
@@ -35,6 +36,7 @@ const TECHNIQUE_EXPLANATIONS: Record<TechniqueName, string> = {
   'toxic-positivity': 'This post dismisses real feelings by forcing artificial optimism. Your brain needs to process negative emotions to learn from them. When someone says "just be positive," it shuts down that processing and makes you feel broken for having normal human reactions.',
   'misleading-format': 'This post uses ALL CAPS, excessive punctuation, or visual tricks to grab your attention and bypass your normal reading process. Your brain treats visual intensity as importance — ALL CAPS triggers the same alert system as a warning sign. This makes you absorb the message before your critical thinking kicks in.',
   'combined': 'This post layers multiple manipulation techniques at once. Each technique targets a different part of your brain\'s defense system. When they stack up, it\'s much harder to think clearly because you\'re processing fear, anger, or shame simultaneously.',
+  'profanity': 'This post contains explicit language that isn\'t appropriate. Vulgar content can normalize aggression and hostility, making it harder to have productive conversations.',
 };
 
 const TECHNIQUE_QUESTIONS: Record<TechniqueName, string> = {
@@ -48,6 +50,7 @@ const TECHNIQUE_QUESTIONS: Record<TechniqueName, string> = {
   'toxic-positivity': 'Check in with yourself: is this post making space for how you actually feel, or is it telling you that your real emotions are wrong?',
   'misleading-format': 'Try reading just the words, ignoring the CAPS and punctuation. Is the actual message as important as the formatting makes it seem?',
   'combined': 'Count them: how many different emotions is this post trying to trigger at once? The more buttons it pushes, the less it trusts its own argument.',
+  'profanity': 'Notice the language: is this person making a point, or just being vulgar? Strong arguments don\'t need explicit words to be convincing.',
 };
 
 const TECHNIQUE_TLDR: Record<TechniqueName, string> = {
@@ -61,6 +64,7 @@ const TECHNIQUE_TLDR: Record<TechniqueName, string> = {
   'toxic-positivity': 'Tells you your real feelings are wrong.',
   'misleading-format': 'Uses ALL CAPS and visual tricks to bypass your brain.',
   'combined': 'Stacks multiple tricks at once to overwhelm your defenses.',
+  'profanity': 'Uses explicit language instead of making a real argument.',
 };
 
 const TECHNIQUE_COLORS: Record<TechniqueName, string> = {
@@ -74,6 +78,7 @@ const TECHNIQUE_COLORS: Record<TechniqueName, string> = {
   'toxic-positivity': '#66bb6a',
   'misleading-format': '#78909c',
   'combined': '#5c6bc0',
+  'profanity': '#e53935',
 };
 
 // ─── MutationObserver guards ───

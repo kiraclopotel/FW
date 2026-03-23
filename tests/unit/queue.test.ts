@@ -62,16 +62,18 @@ describe('ProcessingQueue', () => {
 
     const queue2 = new ProcessingQueue(blockingFn, onResult);
 
-    // Fill 3 concurrent slots
+    // Fill 5 concurrent slots (MAX_CONCURRENT = 5)
     queue2.enqueue(makePost('blocker-1'), false);
     queue2.enqueue(makePost('blocker-2'), false);
     queue2.enqueue(makePost('blocker-3'), false);
+    queue2.enqueue(makePost('blocker-4'), false);
+    queue2.enqueue(makePost('blocker-5'), false);
 
     // Now add low-priority then high-priority
     queue2.enqueue(makePost('low-1'), false);   // priority 1
     queue2.enqueue(makePost('high-1'), true);    // priority 10
 
-    expect(blockCount).toBe(3); // Only 3 started
+    expect(blockCount).toBe(5); // Only 5 started
 
     // Resolve one blocker — high-priority should be picked next
     const processedAfterUnblock: string[] = [];
@@ -83,7 +85,7 @@ describe('ProcessingQueue', () => {
     await new Promise(r => setTimeout(r, 10));
 
     // blocker-1 resolved, so high-1 (priority 10) should have started before low-1
-    expect(blockCount).toBe(4);
+    expect(blockCount).toBe(6);
   });
 
   it('stale items (>30s old) are dropped', async () => {
@@ -96,10 +98,12 @@ describe('ProcessingQueue', () => {
 
     const queue = new ProcessingQueue(blockingFn, onResult);
 
-    // Fill concurrent slots
+    // Fill concurrent slots (5 = MAX_CONCURRENT)
     queue.enqueue(makePost('active-1'), false);
     queue.enqueue(makePost('active-2'), false);
     queue.enqueue(makePost('active-3'), false);
+    queue.enqueue(makePost('active-4'), false);
+    queue.enqueue(makePost('active-5'), false);
 
     // Add item that will become stale
     queue.enqueue(makePost('stale-1'), false);
@@ -123,8 +127,8 @@ describe('ProcessingQueue', () => {
     const blockingFn = () => new Promise<PipelineResult>(() => {}); // never resolves
     const queue = new ProcessingQueue(blockingFn, onResult);
 
-    // Fill concurrent slots (3 will start processing)
-    for (let i = 0; i < 3; i++) {
+    // Fill concurrent slots (5 = MAX_CONCURRENT)
+    for (let i = 0; i < 5; i++) {
       queue.enqueue(makePost(`active-${i}`), false);
     }
 
@@ -140,10 +144,12 @@ describe('ProcessingQueue', () => {
     const blockingFn = () => new Promise<PipelineResult>(() => {});
     const queue = new ProcessingQueue(blockingFn, onResult);
 
-    // Fill concurrent slots
+    // Fill concurrent slots (5 = MAX_CONCURRENT)
     queue.enqueue(makePost('active-1'), false);
     queue.enqueue(makePost('active-2'), false);
     queue.enqueue(makePost('active-3'), false);
+    queue.enqueue(makePost('active-4'), false);
+    queue.enqueue(makePost('active-5'), false);
 
     queue.enqueue(makePost('dup-1'), false);
     queue.enqueue(makePost('dup-1'), false); // duplicate
@@ -152,7 +158,7 @@ describe('ProcessingQueue', () => {
     expect(queue.pending).toBe(1);
   });
 
-  it('concurrent limit is respected (max 3 active)', () => {
+  it('concurrent limit is respected (max 5 active)', () => {
     let activeCount = 0;
     let maxActive = 0;
 
@@ -174,8 +180,8 @@ describe('ProcessingQueue', () => {
       queue.enqueue(makePost(`post-${i}`), false);
     }
 
-    // Only 3 should be active at a time
-    expect(queue.active).toBe(3);
-    expect(maxActive).toBe(3);
+    // Only 5 should be active at a time (MAX_CONCURRENT = 5)
+    expect(queue.active).toBe(5);
+    expect(maxActive).toBe(5);
   });
 });

@@ -82,6 +82,8 @@ export function hideCommentsImmediately(
   commentsContainer: HTMLElement,
   mode: Mode,
 ): void {
+  console.log('[FeelingWise] hideCommentsImmediately called, mode:', mode,
+    'container:', commentsContainer.tagName, 'children:', commentsContainer.children.length);
   if (mode === 'adult') return;
   if (commentsContainer.dataset.fwHidden === 'true') return;
   commentsContainer.dataset.fwHidden = 'true';
@@ -119,6 +121,10 @@ function injectCommentHidingCSS(): void {
   style.textContent = `
     /* Hide all real children of the comment container */
     [data-fw-comment-container="true"] > *:not(.fw-overlay):not(.fw-comment-overlay) {
+      display: none !important;
+    }
+    /* Also hide nested list items (TikTok wraps comments in nested divs > ul > li) */
+    [data-fw-comment-container="true"] li {
       display: none !important;
     }
     /* But keep the container itself visible (TikTok React detection) */

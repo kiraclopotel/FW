@@ -14,7 +14,7 @@ export interface QueueItem {
 
 type ProcessFn = (post: PostContent) => Promise<PipelineResult>;
 
-const MAX_CONCURRENT = 3;
+const MAX_CONCURRENT = 5;
 const MAX_QUEUE_SIZE = 30;
 const STALE_MS = 30_000; // Drop items older than 30 seconds
 

@@ -23,6 +23,7 @@ const AGE_MODIFIERS: Record<TechniqueName, Record<Exclude<AgeGroup, 'adult'>, nu
   'combined':          { 'child': 2, 'teen-young': 1, 'teen-old': 1 },
   'toxic-positivity':  { 'child': 0, 'teen-young': 0, 'teen-old': 0 },
   'misleading-format': { 'child': 0, 'teen-young': 0, 'teen-old': 0 },
+  'profanity':         { 'child': 3, 'teen-young': 1, 'teen-old': 0 },
 };
 
 export function aggregateSeverity(

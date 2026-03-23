@@ -20,10 +20,15 @@ const PATTERNS: PatternSet = {
     /(in|for) the next \d+ (minutes?|hours?|days?)/i,
     /\bclock is ticking\b/i,
     /\bbefore it'?s too late\b/i,
+    // "WATCH...NOW" patterns (e.g., "WATCH THE LIVE ALEX JONES SHOW NOW")
+    /\bWATCH\b.{0,30}\bNOW\b/,
+    /»\s*WATCH\b/i,
     // Romanian urgency (case-sensitive for ALL-CAPS versions)
     /\b(ULTIMA [SȘ]ANS[AĂ]|URGENT|GR[AĂ]BI[TȚ]I-V[AĂ]|AC[TȚ]IONA[TȚ]I ACUM)\b/,
     // Romanian "trebuie să vezi/știi/citești" (you MUST see/know/read)
     /\btrebuie s[aă] (vezi|[sș]tii|cite[sș]ti|distribui|afli)\b/i,
+    // Romanian gambling/betting ads — urgency + FOMO targeting vulnerable users
+    /\b(bonus gratis|rotiri gratuite|f[aă]r[aă] depunere|casino online|joac[aă] acum|pune pauz[aă] la scroll)\b/i,
   ],
   moderate: [
     /\b(urgent|immediately|right now)\b/i,

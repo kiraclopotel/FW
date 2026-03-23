@@ -14,6 +14,7 @@ import type { Mode } from '../types/mode';
 import { getSettings } from '../storage/settings';
 import { safeSendMessage, isContextAlive } from './context-guard';
 import { getCommentsContainer } from './platforms/metric-selectors';
+import { getDiscoveredCommentsContainer } from './platforms/dom-scanner';
 import { extractComments } from './platforms/comment-extractors';
 import { scoreAndRankComments } from '../analysis/comment-scorer';
 import { generateChildComments, rewriteTeenComments } from '../analysis/comment-rewriter';
@@ -200,7 +201,6 @@ async function runCommentPipeline(
 
   if (currentPipelineId !== pipelineId) return; // Stale check
 
-  const { getDiscoveredCommentsContainer } = await import('./platforms/dom-scanner');
   const container = getCommentsContainer(platform) ?? getDiscoveredCommentsContainer(platform);
   if (!container) {
     logScanEvent(platform, 'pass', videoTitle);
@@ -326,10 +326,20 @@ export function initVideoPipeline(platform: Platform): () => void {
     startMetricPolling(platform);
   });
 
+  // Listen for settings changes so cachedMode stays current
+  const storageListener = (changes: Record<string, chrome.storage.StorageChange>) => {
+    if (changes.mode) {
+      cachedMode = changes.mode.newValue as Mode;
+      console.log('[FeelingWise] Mode changed to:', cachedMode);
+      runImmediateActions(platform);
+    }
+  };
+  chrome.storage.onChanged.addListener(storageListener);
+
   // ═══ PATH B: Comment detection (wait for container to appear) ═══
   function tryDetectComments(): void {
     if (!modeReady) return; // Wait until settings have loaded to avoid defaulting to child mode
-    const container = getCommentsContainer(platform);
+    const container = getCommentsContainer(platform) ?? getDiscoveredCommentsContainer(platform);
     if (!container) return;
     if (container.dataset.fwProcessed === 'true') return;
 
@@ -340,6 +350,7 @@ export function initVideoPipeline(platform: Platform): () => void {
     const mode = getCachedMode();
     if (mode === 'child' || mode === 'teen') {
       hideCommentsImmediately(container, mode);
+      console.log(`[FeelingWise] After hideCommentsImmediately, fwHidden: ${container.dataset.fwHidden}, mode: ${mode}`);
     }
 
     // Block comment posting immediately — child mode protects first
@@ -410,6 +421,7 @@ export function initVideoPipeline(platform: Platform): () => void {
     }
     stopMetricPolling();
     cleanupNavigation();
+    chrome.storage.onChanged.removeListener(storageListener);
     if (platform === 'youtube') {
       document.removeEventListener('yt-navigate-finish', handleNav);
     }

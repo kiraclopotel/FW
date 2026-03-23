@@ -26,32 +26,36 @@ let activeAdapter: PlatformAdapter | null = null;
 let queue: ProcessingQueue | null = null;
 
 function init(): void {
-  const platform = detectCurrentPlatform();
-  if (!platform) return; // not a supported platform
+  try {
+    const platform = detectCurrentPlatform();
+    if (!platform) return; // not a supported platform
 
-  const adapter = resolveAdapter(platform);
-  if (!adapter) {
-    console.warn(`[FeelingWise] No adapter for platform: ${platform}`);
-    return;
+    const adapter = resolveAdapter(platform);
+    if (!adapter) {
+      console.warn(`[FeelingWise] No adapter for platform: ${platform}`);
+      return;
+    }
+
+    activeAdapter = adapter;
+    queue = new ProcessingQueue(processPipeline, onProcessingResult);
+    const interceptor = new ContentInterceptor(adapter, onPostDetected);
+    interceptor.start();
+
+    // Video platforms: start the video pipeline (comment hiding, metrics, overlays)
+    if (platform === 'youtube' || platform === 'tiktok' || platform === 'instagram') {
+      initVideoPipeline(platform);
+
+      // DOM diagnostic — only needed on video platforms (discovers metrics/comments containers)
+      setTimeout(() => scanDOM(platform), 3000);
+      const p = platform;
+      (window as any).__FW_SCAN = () => scanDOM(p);
+      console.log('[FeelingWise] Type __FW_SCAN() in console to run DOM diagnostic');
+    }
+
+    console.log(`[FeelingWise] active on ${platform}`);
+  } catch (err) {
+    console.error('[FeelingWise] INIT FATAL:', err);
   }
-
-  activeAdapter = adapter;
-  queue = new ProcessingQueue(processPipeline, onProcessingResult);
-  const interceptor = new ContentInterceptor(adapter, onPostDetected);
-  interceptor.start();
-
-  // Video platforms: start the video pipeline (comment hiding, metrics, overlays)
-  if (platform === 'youtube' || platform === 'tiktok' || platform === 'instagram') {
-    initVideoPipeline(platform);
-
-    // DOM diagnostic — only needed on video platforms (discovers metrics/comments containers)
-    setTimeout(() => scanDOM(platform), 3000);
-    const p = platform;
-    (window as any).__FW_SCAN = () => scanDOM(p);
-    console.log('[FeelingWise] Type __FW_SCAN() in console to run DOM diagnostic');
-  }
-
-  console.log(`[FeelingWise] active on ${platform}`);
 }
 
 async function onPostDetected(post: PostContent): Promise<void> {

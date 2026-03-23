@@ -14,6 +14,7 @@ import { processingCache } from '../storage/cache';
 import { sha256 } from '../forensics/hasher';
 import { getLastCallMeta } from '../ai/client';
 import { getEffectiveThreshold } from './calibration';
+import { filterProfanity } from './profanity-filter';
 
 export interface PipelineResult {
   action: 'pass' | 'neutralize' | 'flag';
@@ -82,6 +83,37 @@ export async function process(post: PostContent): Promise<PipelineResult> {
 
     // Cache settings once — used for budget check and mode threshold below
     const settings = await getSettings();
+
+    // Step 0: Profanity filter — catch vulgar content before AI calls
+    const profanityResult = filterProfanity(post.text, settings.mode);
+    if (profanityResult.filtered && settings.mode === 'child') {
+      console.log(`[FeelingWise] Pipeline: profanity detected for ${post.id}:`, profanityResult.matches);
+      const cleanNeutralized: NeutralizedContent = {
+        postId: post.id,
+        originalHash: textHash,
+        rewrittenText: profanityResult.cleanText,
+        analysis: {
+          postId: post.id,
+          isManipulative: true,
+          overallScore: 8,
+          overallConfidence: 0.95,
+          processingTimeMs: performance.now() - startTime,
+          techniques: [{
+            technique: 'profanity',
+            present: true,
+            confidence: 0.95,
+            severity: 8,
+            evidence: profanityResult.matches,
+          }],
+        },
+        aiSource: 'local',
+        processingTimeMs: performance.now() - startTime,
+      };
+      return { action: 'neutralize', neutralized: cleanNeutralized };
+    }
+
+    // Teen mode: profanity is flagged but text is not modified — proceed to normal pipeline
+    // Adult mode: profanity filter is skipped entirely
 
     // Step 1: Layer 1 — regex-based detection (fast, <5ms)
     const techniques: TechniqueResult[] = detect(post.text, post.author, post.platform);
