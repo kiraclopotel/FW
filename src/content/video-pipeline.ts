@@ -161,9 +161,13 @@ async function runCommentPipeline(
     return;
   }
 
-  // Adult mode: no comment intervention
+  // Adult mode: block comments if enabled, otherwise no intervention
   if (mode === 'adult') {
-    logScanEvent(platform, 'pass', videoTitle);
+    if (videoControls.adultBlockComments) {
+      logScanEvent(platform, 'comments-hidden', videoTitle);
+    } else {
+      logScanEvent(platform, 'pass', videoTitle);
+    }
     return;
   }
 
@@ -245,6 +249,7 @@ function onNavigate(platform: Platform): void {
     delete container.dataset.fwProcessed;
     delete container.dataset.fwHidden;
     container.removeAttribute('data-fw-comment-container');
+    container.style.display = '';
     container.style.visibility = '';
     container.style.maxHeight = '';
     container.style.overflow = '';

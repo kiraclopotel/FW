@@ -199,9 +199,35 @@ function controlTwitterActionRows(mode: Mode, vc: VideoControls): void {
         link.style.setProperty('display', 'none', 'important');
       }
     } else {
-      // adult
-      if (current === 'adult-pass') continue;
-      element.dataset.fwActionRow = 'adult-pass';
+      // adult mode
+      if (vc.adultHideMetrics) {
+        if (current === 'neutralized') continue;
+        element.dataset.fwActionRow = 'neutralized';
+
+        // Hide numeric counts inside action buttons (same as teen)
+        const buttons = element.querySelectorAll<HTMLElement>(
+          'button[data-testid="reply"], button[data-testid="retweet"], ' +
+          'button[data-testid="like"], button[data-testid="bookmark"]',
+        );
+        for (const btn of buttons) {
+          const spans = btn.querySelectorAll<HTMLElement>('span');
+          for (const span of spans) {
+            const text = (span.textContent ?? '').trim();
+            if (text.length > 0 && (NUMERIC_PATTERN.test(text) || /^\d/.test(text))) {
+              span.style.setProperty('visibility', 'hidden', 'important');
+            }
+          }
+        }
+
+        // Hide analytics/views link
+        const analyticsLinks = element.querySelectorAll<HTMLElement>('a[href*="/analytics"]');
+        for (const link of analyticsLinks) {
+          link.style.setProperty('display', 'none', 'important');
+        }
+      } else {
+        if (current === 'adult-pass') continue;
+        element.dataset.fwActionRow = 'adult-pass';
+      }
     }
   }
 }

@@ -46,7 +46,7 @@ function shouldControlEngagement(
     case 'teen':
       return vc.teenHideMetrics;
     case 'adult':
-      return vc.adultHideMetrics;
+      return vc.adultHideMetrics || vc.adultBlockComments;
     default:
       return false;
   }

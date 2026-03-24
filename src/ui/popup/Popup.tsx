@@ -1184,6 +1184,10 @@ function VideoControlsSection({ settings, update }: {
               <span style={{ fontSize: 12 }}>Hide engagement numbers</span>
               <ToggleSwitch checked={vc.adultHideMetrics} onChange={v => updateVC({ adultHideMetrics: v })} />
             </div>
+            <div style={toggleRow}>
+              <span style={{ fontSize: 12 }}>Block comments</span>
+              <ToggleSwitch checked={vc.adultBlockComments} onChange={v => updateVC({ adultBlockComments: v })} />
+            </div>
           </>
         )}
       </div>

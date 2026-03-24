@@ -132,8 +132,19 @@ function controlActionRail(mode: Mode, vc: VideoControls): void {
         });
       }
     } else {
-      if (current === 'adult-pass') continue;
-      element.dataset.fwActionRail = 'adult-pass';
+      // adult mode
+      if (vc.adultHideMetrics) {
+        if (current === 'neutralized') continue;
+        element.dataset.fwActionRail = 'neutralized';
+        for (const sel of COUNT_SELECTORS) {
+          element.querySelectorAll<HTMLElement>(sel).forEach(el => {
+            el.style.setProperty('visibility', 'hidden', 'important');
+          });
+        }
+      } else {
+        if (current === 'adult-pass') continue;
+        element.dataset.fwActionRail = 'adult-pass';
+      }
     }
   }
 }
@@ -169,8 +180,21 @@ function controlCommentSection(mode: Mode, vc: VideoControls): void {
     element.dataset.fwCommentSection = 'teen-discovered';
     // Do NOT hide — video pipeline handles teen comment rewriting separately
   } else {
-    if (current === 'adult-pass') return;
-    element.dataset.fwCommentSection = 'adult-pass';
+    // adult mode
+    if (vc.adultBlockComments) {
+      if (current === 'hidden') return;
+      element.dataset.fwCommentSection = 'hidden';
+      ensureStyleTag(COMMENT_SECTION_CSS_ID, `
+        [data-fw-comment-section="hidden"] {
+          display: none !important;
+          visibility: hidden !important;
+        }
+      `);
+      element.style.setProperty('display', 'none', 'important');
+    } else {
+      if (current === 'adult-pass') return;
+      element.dataset.fwCommentSection = 'adult-pass';
+    }
   }
 }
 
