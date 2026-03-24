@@ -8,7 +8,6 @@ import type { Mode } from '../types/mode';
 import { getSettings } from '../storage/settings';
 import { safeSendMessage } from './context-guard';
 import { getCommentsContainer } from './platforms/metric-selectors';
-import { getDiscoveredCommentsContainer } from './platforms/dom-scanner';
 import { extractComments } from './platforms/comment-extractors';
 import { scoreAndRankComments } from '../analysis/comment-scorer';
 import { generateChildComments, rewriteTeenComments } from '../analysis/comment-rewriter';
@@ -120,7 +119,7 @@ async function runCommentPipeline(
   let container: HTMLElement | null =
     document.querySelector<HTMLElement>('[data-fw-comment-section]');
   if (!container) {
-    container = getCommentsContainer(platform) ?? getDiscoveredCommentsContainer(platform);
+    container = getCommentsContainer(platform);
   }
   if (!container) {
     logScanEvent(platform, 'pass', videoTitle);
@@ -259,7 +258,7 @@ export function initVideoPipeline(platform: Platform): () => void {
     let container: HTMLElement | null =
       document.querySelector<HTMLElement>('[data-fw-comment-section]');
     if (!container) {
-      container = getCommentsContainer(platform) ?? getDiscoveredCommentsContainer(platform);
+      container = getCommentsContainer(platform);
     }
     if (!container) return;
     if (container.dataset.fwProcessed === 'true') return;
