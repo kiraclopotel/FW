@@ -21,7 +21,6 @@ import {
   injectChildEducationalOverlay,
   injectTeenRewrittenComments,
   blockCommentPosting,
-  blockActionButtons,
 } from './video-comment-injector';
 
 // ─── Module-level state ───
@@ -94,8 +93,9 @@ function logScanEvent(
   });
 }
 
-// ─── Immediate actions (metrics + posting) ───
+// ─── Immediate actions (posting block) ───
 // These run ON PAGE LOAD. No dependency on comments existing.
+// Action button blocking is handled by action-blocker.ts (centralized, all platforms).
 
 async function runImmediateActions(platform: Platform): Promise<void> {
   const settings = await getSettings();
@@ -105,41 +105,30 @@ async function runImmediateActions(platform: Platform): Promise<void> {
   if (mode === 'child' && videoControls.childBlockPosting) {
     blockCommentPosting(platform);
   }
-
-  if (mode === 'child' && videoControls.childBlockActions) {
-    blockActionButtons(platform);
-  }
 }
 
-// ─── Action polling ───
+// ─── Comment posting polling ───
 // TikTok/Instagram load new elements when user swipes/scrolls.
-// Re-check every 2 seconds to block comment posting and action buttons.
+// Re-check every 2 seconds to block comment posting inputs.
+// Action button blocking is handled by action-blocker.ts.
 
-function startActionPolling(platform: Platform): void {
+function startPostingPolling(platform: Platform): void {
   if (actionPollTimer) return; // Already running
 
   actionPollTimer = setInterval(async () => {
-    if (!isContextAlive()) { stopActionPolling(); return; }
+    if (!isContextAlive()) { stopPostingPolling(); return; }
     try {
       const settings = await getSettings();
-      const mode = settings.mode;
-
-      // Re-check comment input blocking (comment panel may have appeared)
-      if (mode === 'child' && settings.videoControls.childBlockPosting) {
+      if (settings.mode === 'child' && settings.videoControls.childBlockPosting) {
         blockCommentPosting(platform);
       }
-
-      // Re-check action button blocking for new videos
-      if (mode === 'child' && settings.videoControls.childBlockActions) {
-        blockActionButtons(platform);
-      }
     } catch {
-      // Non-critical — action polling failure should never break anything
+      // Non-critical — polling failure should never break anything
     }
   }, 2000);
 }
 
-function stopActionPolling(): void {
+function stopPostingPolling(): void {
   if (actionPollTimer) {
     clearInterval(actionPollTimer);
     actionPollTimer = null;
@@ -318,8 +307,8 @@ export function initVideoPipeline(platform: Platform): () => void {
     modeReady = true;
     // Run immediately
     runImmediateActions(platform);
-    // Start polling for new metrics (catches swipe-to-new-video)
-    startActionPolling(platform);
+    // Start polling for comment posting block (catches swipe-to-new-video)
+    startPostingPolling(platform);
   });
 
   // Listen for settings changes so cachedMode stays current
@@ -441,7 +430,7 @@ export function initVideoPipeline(platform: Platform): () => void {
       clearInterval(fallbackTimer);
       fallbackTimer = null;
     }
-    stopActionPolling();
+    stopPostingPolling();
     cleanupNavigation();
     chrome.storage.onChanged.removeListener(storageListener);
     if (platform === 'youtube') {

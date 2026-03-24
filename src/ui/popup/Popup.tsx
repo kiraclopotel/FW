@@ -1,6 +1,6 @@
 import { StrictMode, useState, useEffect, CSSProperties } from 'react';
 import { createRoot } from 'react-dom/client';
-import { FWSettings, getSettings, saveSettings, resetDailyStats, verifyPin, setPin, VideoControls, EducationalTopic } from '../../storage/settings';
+import { FWSettings, getSettings, saveSettings, resetDailyStats, verifyPin, setPin, VideoControls, BlockActionsPlatforms, EducationalTopic } from '../../storage/settings';
 import { t, setLocale, Locale } from '../../i18n';
 import { Mode } from '../../types/mode';
 
@@ -1062,8 +1062,31 @@ function VideoControlsSection({ settings, update }: {
             </div>
             <div style={toggleRow}>
               <span style={{ fontSize: 12 }}>Hide action buttons (like, comment, share)</span>
-              <ToggleSwitch checked={vc.childBlockActions} onChange={v => updateVC({ childBlockActions: v })} />
+              <ToggleSwitch checked={vc.childBlockActions} onChange={v => updateVC({
+                childBlockActions: v,
+                ...(v ? { childBlockActionsPlatforms: { tiktok: true, instagram: true, facebook: true, twitter: true } } : {}),
+              })} />
             </div>
+            {vc.childBlockActions && (
+              <div style={{ marginLeft: 16, display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                {([
+                  ['tiktok', 'TikTok'],
+                  ['instagram', 'Instagram'],
+                  ['facebook', 'Facebook'],
+                  ['twitter', 'X (Twitter)'],
+                ] as const).map(([key, label]) => (
+                  <div key={key} style={{ ...toggleRow, paddingTop: 2, paddingBottom: 2 }}>
+                    <span style={{ fontSize: 11, color: C.muted }}>{label}</span>
+                    <ToggleSwitch
+                      checked={vc.childBlockActionsPlatforms?.[key] ?? true}
+                      onChange={v => updateVC({
+                        childBlockActionsPlatforms: { ...vc.childBlockActionsPlatforms, [key]: v },
+                      })}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Educational topics (only when educational mode) */}
             {vc.childCommentMode === 'educational' && (

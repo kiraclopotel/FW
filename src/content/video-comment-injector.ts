@@ -171,7 +171,34 @@ const ACTION_ICON_SELECTORS: Record<string, string[]> = {
     '[data-e2e="like-icon"]',
     '[data-e2e="comment-icon"]',
     '[data-e2e="share-icon"]',
-    '[data-e2e="favorite-icon"]',
+    '[data-e2e="undefined-icon"]',        // Bookmark (TikTok uses "undefined-icon")
+  ],
+  instagram: [
+    'svg[aria-label*="Like" i]',
+    'svg[aria-label*="place" i]',         // Romanian "Îmi place"
+    'svg[aria-label*="Comment" i]',
+    'svg[aria-label*="Coment" i]',        // Romanian "Comentează"
+    'svg[aria-label*="Share" i]',
+    'svg[aria-label*="Distribu" i]',      // Romanian "Distribuie"
+    'svg[aria-label*="Save" i]',
+    'svg[aria-label*="Salv" i]',          // Romanian "Salvează"
+  ],
+  facebook: [
+    'span[role="toolbar"][aria-label*="reac" i]',
+    'div[role="button"][aria-label*="Like" i]',
+    'div[role="button"][aria-label*="place" i]',
+    'div[role="button"][aria-label*="Comment" i]',
+    'div[role="button"][aria-label*="Coment" i]',
+    'div[role="button"][aria-label*="Share" i]',
+    'div[role="button"][aria-label*="Distribu" i]',
+  ],
+  twitter: [
+    'button[data-testid="reply"]',
+    'button[data-testid="retweet"]',
+    'button[data-testid="like"]',
+    'button[data-testid="bookmark"]',
+    'button[aria-label*="Share post" i]',
+    'a[aria-label*="views" i]',
   ],
 };
 
@@ -181,9 +208,10 @@ export function blockActionButtons(platform: string): void {
 
   let found = false;
   for (const sel of selectors) {
-    document.querySelectorAll<HTMLElement>(sel).forEach(iconSpan => {
-      const btn = iconSpan.closest('button');
-      const target = btn ?? iconSpan;
+    document.querySelectorAll<HTMLElement>(sel).forEach(el => {
+      // Walk up to find the clickable parent: <button> OR [role="button"]
+      const btn = el.closest('button') ?? el.closest('[role="button"]');
+      const target = btn ?? el;
       if (target.dataset.fwActionBlocked === 'true') return;
       target.dataset.fwActionBlocked = 'true';
       target.style.setProperty('display', 'none', 'important');
