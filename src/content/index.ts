@@ -19,7 +19,6 @@ import { getSettings } from '../storage/settings';
 import { injectIntoElement } from './injector';
 import { ProcessingQueue } from './queue';
 import { initVideoPipeline } from './video-pipeline';
-import { scanDOM } from './platforms/dom-scanner';
 import { safeSendMessage } from './context-guard';
 
 let activeAdapter: PlatformAdapter | null = null;
@@ -45,11 +44,6 @@ function init(): void {
     if (platform === 'youtube' || platform === 'tiktok' || platform === 'instagram') {
       initVideoPipeline(platform);
 
-      // DOM diagnostic — only needed on video platforms (discovers metrics/comments containers)
-      setTimeout(() => scanDOM(platform), 3000);
-      const p = platform;
-      (window as any).__FW_SCAN = () => scanDOM(p);
-      console.log('[FeelingWise] Type __FW_SCAN() in console to run DOM diagnostic');
     }
 
     console.log(`[FeelingWise] active on ${platform}`);

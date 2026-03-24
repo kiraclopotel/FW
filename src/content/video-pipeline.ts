@@ -3,11 +3,8 @@
 // for video-first platforms (YouTube, TikTok, Instagram).
 //
 // TWO INDEPENDENT PATHS:
-// Path A (immediate): Metrics hiding + comment posting block → runs on page load
+// Path A (immediate): Comment posting block + action button blocking → runs on page load
 // Path B (deferred):  Comment replacement/rewriting → runs when comment container appears
-//
-// Path A uses dom-scanner's getDiscoveredMetrics() for robust metric discovery.
-// Path B still uses getCommentsContainer() with getDiscoveredCommentsContainer() as fallback.
 
 import type { Platform } from '../types/post';
 import type { Mode } from '../types/mode';
@@ -23,7 +20,6 @@ import {
   hideTikTokCommentsDirectCSS,
   injectChildEducationalOverlay,
   injectTeenRewrittenComments,
-  hideEngagementMetrics,
   blockCommentPosting,
   blockActionButtons,
 } from './video-comment-injector';
@@ -32,7 +28,7 @@ import {
 
 let cachedMode: Mode = 'child'; // Safest default for synchronous access
 let currentPipelineId = '';
-let metricPollTimer: ReturnType<typeof setInterval> | null = null;
+let actionPollTimer: ReturnType<typeof setInterval> | null = null;
 let tiktokChildCleanup: (() => void) | null = null;
 
 function getCachedMode(): Mode {
@@ -106,23 +102,6 @@ async function runImmediateActions(platform: Platform): Promise<void> {
   const mode = settings.mode;
   const { videoControls } = settings;
 
-  const shouldHideMetrics =
-    (mode === 'child' && videoControls.childHideMetrics) ||
-    (mode === 'teen' && videoControls.teenHideMetrics) ||
-    (mode === 'adult' && videoControls.adultHideMetrics);
-
-  if (shouldHideMetrics) {
-    // Use the scanner's discovered metrics (falls back to known selectors internally)
-    const { getDiscoveredMetrics } = await import('./platforms/dom-scanner');
-    const elements = getDiscoveredMetrics(platform);
-    if (elements.length > 0) {
-      hideEngagementMetrics(elements);
-      console.log(`[FeelingWise] Hidden ${elements.length} metric elements on ${platform}`);
-    } else {
-      console.log(`[FeelingWise] No metric elements found yet on ${platform}`);
-    }
-  }
-
   if (mode === 'child' && videoControls.childBlockPosting) {
     blockCommentPosting(platform);
   }
@@ -132,33 +111,20 @@ async function runImmediateActions(platform: Platform): Promise<void> {
   }
 }
 
-// ─── Metric polling ───
-// TikTok/Instagram load new metrics when user swipes/scrolls.
-// Re-check every 2 seconds for new unhidden metrics.
+// ─── Action polling ───
+// TikTok/Instagram load new elements when user swipes/scrolls.
+// Re-check every 2 seconds to block comment posting and action buttons.
 
-function startMetricPolling(platform: Platform): void {
-  if (metricPollTimer) return; // Already running
+function startActionPolling(platform: Platform): void {
+  if (actionPollTimer) return; // Already running
 
-  metricPollTimer = setInterval(async () => {
-    if (!isContextAlive()) { stopMetricPolling(); return; }
+  actionPollTimer = setInterval(async () => {
+    if (!isContextAlive()) { stopActionPolling(); return; }
     try {
       const settings = await getSettings();
       const mode = settings.mode;
-      const shouldHide =
-        (mode === 'child' && settings.videoControls.childHideMetrics) ||
-        (mode === 'teen' && settings.videoControls.teenHideMetrics) ||
-        (mode === 'adult' && settings.videoControls.adultHideMetrics);
 
-      if (!shouldHide) return;
-
-      const { getDiscoveredMetrics } = await import('./platforms/dom-scanner');
-      const elements = getDiscoveredMetrics(platform);
-      const unhidden = elements.filter(el => el.dataset.fwMetricHidden !== 'true');
-      if (unhidden.length > 0) {
-        hideEngagementMetrics(unhidden);
-      }
-
-      // Also re-check comment input blocking (comment panel may have appeared)
+      // Re-check comment input blocking (comment panel may have appeared)
       if (mode === 'child' && settings.videoControls.childBlockPosting) {
         blockCommentPosting(platform);
       }
@@ -168,15 +134,15 @@ function startMetricPolling(platform: Platform): void {
         blockActionButtons(platform);
       }
     } catch {
-      // Non-critical — metric polling failure should never break anything
+      // Non-critical — action polling failure should never break anything
     }
   }, 2000);
 }
 
-function stopMetricPolling(): void {
-  if (metricPollTimer) {
-    clearInterval(metricPollTimer);
-    metricPollTimer = null;
+function stopActionPolling(): void {
+  if (actionPollTimer) {
+    clearInterval(actionPollTimer);
+    actionPollTimer = null;
   }
 }
 
@@ -353,7 +319,7 @@ export function initVideoPipeline(platform: Platform): () => void {
     // Run immediately
     runImmediateActions(platform);
     // Start polling for new metrics (catches swipe-to-new-video)
-    startMetricPolling(platform);
+    startActionPolling(platform);
   });
 
   // Listen for settings changes so cachedMode stays current
@@ -475,7 +441,7 @@ export function initVideoPipeline(platform: Platform): () => void {
       clearInterval(fallbackTimer);
       fallbackTimer = null;
     }
-    stopMetricPolling();
+    stopActionPolling();
     cleanupNavigation();
     chrome.storage.onChanged.removeListener(storageListener);
     if (platform === 'youtube') {

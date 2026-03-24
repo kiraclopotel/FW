@@ -534,19 +534,6 @@ export function injectTeenRewrittenComments(
   commentsContainer.insertAdjacentElement('afterend', overlay);
 }
 
-// --- Hide engagement metrics ---
-
-export function hideEngagementMetrics(elements: HTMLElement[]): void {
-  for (const el of elements) {
-    if (el.dataset.fwMetricHidden === 'true') continue;
-    el.style.visibility = 'hidden';
-    el.style.width = '0';
-    el.style.overflow = 'hidden';
-    el.setAttribute('aria-hidden', 'true');
-    el.dataset.fwMetricHidden = 'true';
-  }
-}
-
 // --- Block comment posting ---
 
 const COMMENT_INPUT_SELECTORS: Record<string, string[]> = {
