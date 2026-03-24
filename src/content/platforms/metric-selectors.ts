@@ -1,3 +1,5 @@
+// DEPRECATED: Only getCommentsContainer is still used. Will be removed when video-pipeline.ts is fully migrated.
+
 /**
  * Returns engagement metric elements (like counts, view counts, share counts)
  * for a given platform. These get hidden in child/teen mode.

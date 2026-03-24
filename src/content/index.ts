@@ -19,7 +19,6 @@ import { getSettings } from '../storage/settings';
 import { injectIntoElement } from './injector';
 import { ProcessingQueue } from './queue';
 import { initVideoPipeline } from './video-pipeline';
-import { initActionBlocker } from './action-blocker';
 import { safeSendMessage } from './context-guard';
 
 let activeAdapter: PlatformAdapter | null = null;
@@ -40,9 +39,6 @@ function init(): void {
     queue = new ProcessingQueue(processPipeline, onProcessingResult);
     const interceptor = new ContentInterceptor(adapter, onPostDetected);
     interceptor.start();
-
-    // Action button blocking: runs on all supported platforms (tiktok, instagram, facebook, twitter)
-    initActionBlocker(platform);
 
     // Video platforms: start the video pipeline (comment hiding, overlays)
     if (platform === 'youtube' || platform === 'tiktok' || platform === 'instagram') {
