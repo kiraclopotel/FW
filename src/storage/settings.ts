@@ -34,11 +34,17 @@ export interface FWSettings {
   mode: Mode;
 
   // API configuration — user's own key OR managed credits
-  apiProvider: 'anthropic' | 'openai' | 'deepseek' | 'gemini' | 'managed';
+  apiProvider: 'anthropic' | 'openai' | 'deepseek' | 'gemini' | 'groq' | 'mistral' | 'xai' | 'openrouter' | 'together' | 'cohere' | 'managed';
   anthropicApiKey: string;
   openaiApiKey: string;
   deepSeekApiKey: string;
   geminiApiKey: string;
+  groqApiKey: string;
+  mistralApiKey: string;
+  xaiApiKey: string;
+  openRouterApiKey: string;
+  togetherApiKey: string;
+  cohereApiKey: string;
   managedCredits: number;
 
   // Parent PIN (SHA-256 hash, '' = no PIN set)
@@ -71,6 +77,7 @@ export interface FWSettings {
 const SETTINGS_KEYS: (keyof FWSettings)[] = [
   'mode', 'apiProvider',
   'anthropicApiKey', 'openaiApiKey', 'deepSeekApiKey', 'geminiApiKey',
+  'groqApiKey', 'mistralApiKey', 'xaiApiKey', 'openRouterApiKey', 'togetherApiKey', 'cohereApiKey',
   'managedCredits', 'parentPin', 'dailyCap', 'deepScanEnabled', 'locale',
   'totalChecksToday', 'totalNeutralizedToday', 'totalTokensToday', 'estimatedCostToday', 'lastResetDate',
   'totalTokensAllTime', 'totalChecksAllTime', 'totalNeutralizedAllTime', 'estimatedCostAllTime',
@@ -84,6 +91,12 @@ const DEFAULTS: FWSettings = {
   openaiApiKey: '',
   deepSeekApiKey: '',
   geminiApiKey: '',
+  groqApiKey: '',
+  mistralApiKey: '',
+  xaiApiKey: '',
+  openRouterApiKey: '',
+  togetherApiKey: '',
+  cohereApiKey: '',
   managedCredits: 0,
   parentPin: '',
   dailyCap: 5000,
@@ -205,6 +218,12 @@ export async function trackTokenUsage(inputTokens: number, outputTokens: number,
     'anthropic': 80,   // ~$0.80/1M tokens (Haiku average)
     'openai': 15,      // ~$0.15/1M tokens (GPT-4o-mini average)
     'gemini': 10,      // ~$0.10/1M tokens (Flash average)
+    'groq': 3,         // ~$0.03/1M tokens (Llama models on Groq)
+    'mistral': 10,     // ~$0.10/1M tokens (Mistral Small average)
+    'xai': 20,         // ~$0.20/1M tokens (Grok-2)
+    'openrouter': 15,  // ~$0.15/1M tokens (varies by model)
+    'together': 5,     // ~$0.05/1M tokens (Llama turbo models)
+    'cohere': 10,      // ~$0.10/1M tokens (Command-R average)
     'managed': 0,
   };
 
@@ -239,6 +258,12 @@ export async function validateApiKey(): Promise<{ valid: boolean; provider: stri
       case 'openai': valid = !!settings.openaiApiKey; break;
       case 'deepseek': valid = !!settings.deepSeekApiKey; break;
       case 'gemini': valid = !!settings.geminiApiKey; break;
+      case 'groq': valid = !!settings.groqApiKey; break;
+      case 'mistral': valid = !!settings.mistralApiKey; break;
+      case 'xai': valid = !!settings.xaiApiKey; break;
+      case 'openrouter': valid = !!settings.openRouterApiKey; break;
+      case 'together': valid = !!settings.togetherApiKey; break;
+      case 'cohere': valid = !!settings.cohereApiKey; break;
       case 'managed': valid = settings.managedCredits > 0; break;
     }
     return { valid, provider };

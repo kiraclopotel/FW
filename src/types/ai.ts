@@ -2,7 +2,7 @@
 
 import { AnalysisResult } from './analysis';
 
-export type CloudProvider = 'gemini' | 'anthropic' | 'openai' | 'deepseek';
+export type CloudProvider = 'gemini' | 'anthropic' | 'openai' | 'deepseek' | 'groq' | 'mistral' | 'xai' | 'openrouter' | 'together' | 'cohere';
 
 export interface AIRequest {
   postText: string;
