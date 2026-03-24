@@ -19,14 +19,14 @@ function CreditBattery({ credits }: { credits: number }) {
   return (
     <div style={{ padding: '12px 16px 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
-        <span style={{ color: C.muted }}>Credits</span>
+        <span style={{ color: C.muted }}>{t('credits')}</span>
         <span style={{ color: C.muted }}>{Math.round(pct)}%</span>
       </div>
       <div style={{ height: 6, background: C.border, borderRadius: 3, overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${pct}%`, background: barColor, borderRadius: 3 }} />
       </div>
       <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
-        {credits} credits remaining
+        {credits} {t('creditsRemaining')}
       </div>
     </div>
   );
@@ -46,32 +46,32 @@ function UsageCard({ settings }: { settings: FWSettings }) {
         padding: 14,
       }}>
         <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-          Usage
+          {t('usage')}
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
               <th style={{ ...hdr, textAlign: 'left', padding: '2px 6px' }}></th>
-              <th style={{ ...hdr, textAlign: 'right', padding: '2px 6px' }}>Checks</th>
-              <th style={{ ...hdr, textAlign: 'right', padding: '2px 6px' }}>Fixed</th>
-              <th style={{ ...hdr, textAlign: 'right', padding: '2px 6px' }}>Tokens</th>
-              <th style={{ ...hdr, textAlign: 'right', padding: '2px 6px' }}>Cost</th>
+              <th style={{ ...hdr, textAlign: 'right', padding: '2px 6px' }}>{t('checks')}</th>
+              <th style={{ ...hdr, textAlign: 'right', padding: '2px 6px' }}>{t('fixed')}</th>
+              <th style={{ ...hdr, textAlign: 'right', padding: '2px 6px' }}>{t('tokens')}</th>
+              <th style={{ ...hdr, textAlign: 'right', padding: '2px 6px' }}>{t('cost')}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td style={{ ...labelCell, color: C.text }}>Today</td>
+              <td style={{ ...labelCell, color: C.text }}>{t('today')}</td>
               <td style={{ ...cell, color: C.text }}>{settings.totalChecksToday}</td>
               <td style={{ ...cell, color: C.text }}>{settings.totalNeutralizedToday}</td>
               <td style={{ ...cell, color: C.text }}>{formatTokens(settings.totalTokensToday)}</td>
-              <td style={{ ...cell, color: C.text }}>~${(settings.estimatedCostToday / 100).toFixed(3)}</td>
+              <td style={{ ...cell, color: C.text }}>~${settings.estimatedCostToday.toFixed(2)}</td>
             </tr>
             <tr>
-              <td style={{ ...labelCell, color: C.muted, fontSize: 11 }}>All time</td>
+              <td style={{ ...labelCell, color: C.muted, fontSize: 11 }}>{t('allTime')}</td>
               <td style={{ ...cell, color: C.muted, fontSize: 11 }}>{settings.totalChecksAllTime}</td>
               <td style={{ ...cell, color: C.muted, fontSize: 11 }}>{settings.totalNeutralizedAllTime}</td>
               <td style={{ ...cell, color: C.muted, fontSize: 11 }}>{formatTokens(settings.totalTokensAllTime)}</td>
-              <td style={{ ...cell, color: C.muted, fontSize: 11 }}>~${(settings.estimatedCostAllTime / 100).toFixed(2)}</td>
+              <td style={{ ...cell, color: C.muted, fontSize: 11 }}>~${settings.estimatedCostAllTime.toFixed(2)}</td>
             </tr>
           </tbody>
         </table>
@@ -95,7 +95,7 @@ export function HomeTab({ settings, update, onDashboard, onModeChange }: {
       {/* Status */}
       {!isActive && (
         <div style={{ padding: '8px 16px', fontSize: 11, color: C.amber, textAlign: 'center' }}>
-          No API key configured — go to Providers tab
+          {t('noApiKeyConfigured')}
         </div>
       )}
 
@@ -160,7 +160,7 @@ export function HomeTab({ settings, update, onDashboard, onModeChange }: {
             cursor: 'pointer', fontFamily: font, transition: 'all 0.15s ease',
           }}
         >
-          View Dashboard
+          {t('viewDashboard')}
         </button>
       </div>
     </div>

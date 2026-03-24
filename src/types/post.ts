@@ -10,6 +10,7 @@ export interface PostContent {
   timestamp: string;             // ISO-8601
   platform: Platform;
   domRef: WeakRef<HTMLElement>;
+  sourceUrl?: string;
   mediaUrls?: string[];
   feedSource?: FeedSource;
 }

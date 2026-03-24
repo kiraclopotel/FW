@@ -35,6 +35,7 @@ export class FacebookAdapter implements PlatformAdapter {
 
         const author = this._extractAuthor(article);
         const postId = this._extractPostId(article) ?? crypto.randomUUID();
+        const sourceUrl = this._extractPostUrl(article);
 
         article.dataset.fwProcessed = 'true';
 
@@ -46,6 +47,7 @@ export class FacebookAdapter implements PlatformAdapter {
           platform: 'facebook',
           domRef: new WeakRef(element),
           feedSource,
+          sourceUrl,
         });
       }
     });
@@ -148,6 +150,21 @@ export class FacebookAdapter implements PlatformAdapter {
       }
     }
 
+    // Strategy 3: profile/reel links with aria-label/title
+    const profileLink = article.querySelector<HTMLAnchorElement>('a[href*="/profile.php"], a[href*="/reel/"], a[href*="/posts/"]');
+    const profileText =
+      profileLink?.getAttribute('aria-label')?.trim()
+      || profileLink?.getAttribute('title')?.trim()
+      || profileLink?.textContent?.trim();
+    if (profileText && profileText.length > 0 && profileText.length < 80) {
+      return profileText;
+    }
+
+    // Strategy 4: fallback to accessible actor labels on the article
+    const actorEl = article.querySelector<HTMLElement>('[aria-label*=\"profile\" i], [aria-label*=\"profil\" i]');
+    const actorText = actorEl?.getAttribute('aria-label')?.trim();
+    if (actorText && actorText.length < 80) return actorText;
+
     return 'unknown';
   }
 
@@ -173,6 +190,23 @@ export class FacebookAdapter implements PlatformAdapter {
       if (reelMatch) return reelMatch[1];
     }
     return null;
+  }
+
+  private _extractPostUrl(article: HTMLElement): string {
+    const links = article.querySelectorAll<HTMLAnchorElement>('a[href]');
+    for (const link of links) {
+      const href = link.getAttribute('href') ?? '';
+      if (
+        href.includes('/posts/')
+        || href.includes('/permalink/')
+        || href.includes('story_fbid=')
+        || href.includes('/reel/')
+        || href.includes('/videos/')
+      ) {
+        return href.startsWith('http') ? href : `https://www.facebook.com${href}`;
+      }
+    }
+    return '';
   }
 
   private _detectFeedSource(): FeedSource {

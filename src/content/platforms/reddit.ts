@@ -113,6 +113,7 @@ export class RedditAdapter implements PlatformAdapter {
           platform: 'reddit',
           domRef: new WeakRef(textBody),
           feedSource,
+          sourceUrl: this._extractNewRedditPermalink(el),
         };
       }
     }
@@ -130,6 +131,7 @@ export class RedditAdapter implements PlatformAdapter {
           platform: 'reddit',
           domRef: new WeakRef(titleEl),
           feedSource,
+          sourceUrl: this._extractNewRedditPermalink(el),
         };
       }
     }
@@ -174,6 +176,7 @@ export class RedditAdapter implements PlatformAdapter {
       platform: 'reddit',
       domRef: new WeakRef(textEl),
       feedSource,
+      sourceUrl: this._extractNewRedditPermalink(el),
     };
   }
 
@@ -231,6 +234,7 @@ export class RedditAdapter implements PlatformAdapter {
         platform: 'reddit',
         domRef: new WeakRef(result.element),
         feedSource,
+        sourceUrl: this._extractOldRedditPermalink(el),
       };
     }
 
@@ -245,6 +249,7 @@ export class RedditAdapter implements PlatformAdapter {
         platform: 'reddit',
         domRef: new WeakRef(selfText.element),
         feedSource,
+        sourceUrl: this._extractOldRedditPermalink(el),
       };
     }
 
@@ -260,6 +265,7 @@ export class RedditAdapter implements PlatformAdapter {
           platform: 'reddit',
           domRef: new WeakRef(titleEl),
           feedSource,
+          sourceUrl: this._extractOldRedditPermalink(el),
         };
       }
     }
@@ -276,6 +282,23 @@ export class RedditAdapter implements PlatformAdapter {
     if (match) return match[1];
 
     return crypto.randomUUID();
+  }
+
+  private _extractNewRedditPermalink(el: HTMLElement): string {
+    const permalink =
+      el.getAttribute('permalink')
+      ?? el.querySelector<HTMLAnchorElement>('a[href*="/comments/"]')?.getAttribute('href')
+      ?? '';
+    if (!permalink) return '';
+    return permalink.startsWith('http') ? permalink : `https://www.reddit.com${permalink}`;
+  }
+
+  private _extractOldRedditPermalink(el: HTMLElement): string {
+    const permalink = el.getAttribute('data-permalink')
+      ?? el.querySelector<HTMLAnchorElement>('a.comments')?.getAttribute('href')
+      ?? '';
+    if (!permalink) return '';
+    return permalink.startsWith('http') ? permalink : `https://old.reddit.com${permalink}`;
   }
 
   private _detectFeedSource(): FeedSource {

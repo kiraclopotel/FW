@@ -166,6 +166,18 @@ export async function combinedDetectAndNeutralize(
     }
 
     const present = verified.filter(t => t.present);
+    if ((response.overallManipulative ?? false) && present.length === 0) {
+      // Guardrail: if model says manipulative but returns no confirmed technique,
+      // record a conservative combined technique instead of a 0.0 score.
+      verified.push({
+        technique: 'combined',
+        present: true,
+        confidence: Math.max(response.overallConfidence ?? 0.6, 0.5),
+        severity: Math.max(3, Math.round((response.overallConfidence ?? 0.6) * 10)),
+        evidence: ['AI signaled manipulative framing without a specific labeled technique.'],
+      });
+    }
+
     const analysis: AnalysisResult = {
       postId: '',
       techniques: verified,

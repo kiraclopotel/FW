@@ -24,5 +24,16 @@
   "about": "DESPRE",
   "aboutText": "Construit pentru a face manipularea vizibilă. Niciodată pentru a cenzura.",
   "tokensUsed": "tokeni folosiți azi",
-  "language": "Limbă"
+  "language": "Limbă",
+  "credits": "Credite",
+  "creditsRemaining": "credite rămase",
+  "usage": "Utilizare",
+  "checks": "Verificări",
+  "fixed": "Corectate",
+  "tokens": "Tokeni",
+  "cost": "Cost",
+  "today": "Azi",
+  "allTime": "Total",
+  "noApiKeyConfigured": "Nicio cheie API configurată — mergi la fila Furnizori",
+  "viewDashboard": "Vezi dashboard-ul"
 }

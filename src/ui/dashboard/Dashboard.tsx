@@ -16,6 +16,46 @@ import { computeScanStats, ScanStats } from '../../forensics/scan-log';
 import { detectAnomalies, AnomalyAlert } from '../../forensics/anomaly-detector';
 import { calibrate, applyCalibration, CalibrationResult } from '../../core/calibration';
 
+type DashboardLocale = 'en' | 'ro';
+const DASHBOARD_I18N: Record<DashboardLocale, Record<string, string>> = {
+  en: {
+    justNow: 'just now',
+    agoM: 'm ago',
+    agoH: 'h ago',
+    yesterday: 'yesterday',
+    agoD: 'd ago',
+    agoW: 'w ago',
+    parentVerificationRequired: 'Parent Verification Required',
+    enterPin: 'Enter your 4-digit PIN to access the dashboard',
+    incorrectPin: 'Incorrect PIN',
+    unlockDashboard: 'Unlock Dashboard',
+    loadingForensicData: 'Loading forensic data...',
+    unknown: 'unknown',
+    viewOriginalPost: 'View original post',
+    author: 'Author',
+  },
+  ro: {
+    justNow: 'chiar acum',
+    agoM: 'min în urmă',
+    agoH: 'h în urmă',
+    yesterday: 'ieri',
+    agoD: 'z în urmă',
+    agoW: 'săpt în urmă',
+    parentVerificationRequired: 'Verificare părinte necesară',
+    enterPin: 'Introdu PIN-ul de 4 cifre pentru a accesa dashboard-ul',
+    incorrectPin: 'PIN incorect',
+    unlockDashboard: 'Deblochează dashboard-ul',
+    loadingForensicData: 'Se încarcă datele forensic...',
+    unknown: 'necunoscut',
+    viewOriginalPost: 'Vezi postarea originală',
+    author: 'Autor',
+  },
+};
+
+function dt(locale: DashboardLocale, key: keyof typeof DASHBOARD_I18N['en']): string {
+  return DASHBOARD_I18N[locale][key] ?? DASHBOARD_I18N.en[key];
+}
+
 // ─── Design tokens ───
 const C = {
   bg: '#0a0a0a',
@@ -70,20 +110,20 @@ const PLATFORM_LABELS: Record<string, string> = {
 
 // ─── Helpers ───
 
-function relativeTime(iso: string): string {
+function relativeTime(iso: string, locale: DashboardLocale): string {
   const now = Date.now();
   const then = new Date(iso).getTime();
   const diff = now - then;
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return dt(locale, 'justNow');
+  if (mins < 60) return locale === 'ro' ? `${mins} ${dt(locale, 'agoM')}` : `${mins}${dt(locale, 'agoM')}`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
+  if (hrs < 24) return locale === 'ro' ? `${hrs} ${dt(locale, 'agoH')}` : `${hrs}${dt(locale, 'agoH')}`;
   const days = Math.floor(hrs / 24);
-  if (days === 1) return 'yesterday';
-  if (days < 7) return `${days}d ago`;
+  if (days === 1) return dt(locale, 'yesterday');
+  if (days < 7) return locale === 'ro' ? `${days} ${dt(locale, 'agoD')}` : `${days}${dt(locale, 'agoD')}`;
   const weeks = Math.floor(days / 7);
-  if (weeks < 5) return `${weeks}w ago`;
+  if (weeks < 5) return locale === 'ro' ? `${weeks} ${dt(locale, 'agoW')}` : `${weeks}${dt(locale, 'agoW')}`;
   return new Date(iso).toLocaleDateString();
 }
 
@@ -117,10 +157,12 @@ function Dashboard() {
   const [pinError, setPinError] = useState(false);
   const [calibrationResults, setCalibrationResults] = useState<CalibrationResult[]>([]);
   const [entities, setEntities] = useState<ResolvedEntity[]>([]);
+  const [locale, setLocale] = useState<DashboardLocale>('en');
 
   useEffect(() => {
-    chrome.storage.local.get('parentPin').then(result => {
+    chrome.storage.local.get(['parentPin', 'locale']).then(result => {
       setPinRequired(!!result.parentPin);
+      setLocale(result.locale === 'ro' ? 'ro' : 'en');
     });
   }, []);
 
@@ -195,8 +237,8 @@ function Dashboard() {
           flexDirection: 'column',
           gap: 16,
         }}>
-          <div style={{ fontSize: 18, fontWeight: 600, color: C.text }}>Parent Verification Required</div>
-          <div style={{ fontSize: 13, color: C.muted }}>Enter your 4-digit PIN to access the dashboard</div>
+          <div style={{ fontSize: 18, fontWeight: 600, color: C.text }}>{dt(locale, 'parentVerificationRequired')}</div>
+          <div style={{ fontSize: 13, color: C.muted }}>{dt(locale, 'enterPin')}</div>
           <input
             type="password"
             inputMode="numeric"
@@ -223,7 +265,7 @@ function Dashboard() {
             }}
           />
           {pinError && (
-            <div style={{ color: C.red, fontSize: 13 }}>Incorrect PIN</div>
+            <div style={{ color: C.red, fontSize: 13 }}>{dt(locale, 'incorrectPin')}</div>
           )}
           <button
             onClick={handlePinSubmit}
@@ -240,7 +282,7 @@ function Dashboard() {
               fontFamily: font,
             }}
           >
-            Unlock Dashboard
+            {dt(locale, 'unlockDashboard')}
           </button>
         </div>
       </div>
@@ -250,7 +292,7 @@ function Dashboard() {
   if (loading) {
     return (
       <div style={{ ...page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ color: C.muted, fontSize: 15 }}>Loading forensic data...</span>
+        <span style={{ color: C.muted, fontSize: 15 }}>{dt(locale, 'loadingForensicData')}</span>
       </div>
     );
   }
@@ -384,7 +426,7 @@ function Dashboard() {
 
         {/* Section 5: Author Repeat Offenders */}
         <SectionHeader title="Repeat Offender Accounts" subtitle="Top accounts responsible for manipulation detections — entity resolution across sessions" />
-        <AuthorOffenderTable records={records} authorProfiles={authorProfiles} />
+        <AuthorOffenderTable records={records} authorProfiles={authorProfiles} locale={locale} />
 
         {/* Section 5b: Cross-Platform Actors */}
         {entities.length > 0 && (
@@ -520,7 +562,7 @@ function Dashboard() {
 
         {/* Section 9: Recent Activity Log */}
         <SectionHeader title="Recent Activity" subtitle="Last 50 neutralized posts — click to expand and see before/after" />
-        <ActivityLog records={records} />
+        <ActivityLog records={records} locale={locale} />
 
         {/* Section 10: Export & Evidence */}
         <SectionHeader title="Export &amp; Evidence" subtitle="Download records for research, legal proceedings, or regulatory evidence" />
@@ -987,18 +1029,18 @@ interface AuthorSummary {
   flagRate: number | null; // from AuthorProfile if available
 }
 
-function AuthorOffenderTable({ records, authorProfiles }: { records: ForensicRecord[]; authorProfiles: AuthorProfile[] }) {
+function AuthorOffenderTable({ records, authorProfiles, locale }: { records: ForensicRecord[]; authorProfiles: AuthorProfile[]; locale: DashboardLocale }) {
   const [expandedAuthor, setExpandedAuthor] = useState<string | null>(null);
 
   // Group forensic records by author
   const authorMap: Record<string, { count: number; techniques: Record<string, number>; totalSeverity: number; lastSeen: string }> = {};
 
   for (const r of records) {
-    if (!r.author) continue;
-    if (!authorMap[r.author]) {
-      authorMap[r.author] = { count: 0, techniques: {}, totalSeverity: 0, lastSeen: r.timestamp };
+    const normalizedAuthor = (r.author && r.author !== 'unknown') ? r.author : dt(locale, 'unknown');
+    if (!authorMap[normalizedAuthor]) {
+      authorMap[normalizedAuthor] = { count: 0, techniques: {}, totalSeverity: 0, lastSeen: r.timestamp };
     }
-    const a = authorMap[r.author];
+    const a = authorMap[normalizedAuthor];
     a.count++;
     a.totalSeverity += r.overallScore;
     if (r.timestamp > a.lastSeen) a.lastSeen = r.timestamp;
@@ -1104,7 +1146,7 @@ function AuthorOffenderTable({ records, authorProfiles }: { records: ForensicRec
               <span style={{ textAlign: 'right', color: sevColor, fontWeight: 600 }}>
                 {s.avgSeverity.toFixed(1)}
               </span>
-              <span style={{ fontSize: 12, color: C.muted }}>{relativeTime(s.lastSeen)}</span>
+              <span style={{ fontSize: 12, color: C.muted }}>{relativeTime(s.lastSeen, locale)}</span>
               <span style={{ textAlign: 'right', fontSize: 12 }}>
                 {s.flagRate !== null ? (
                   <span style={{ color: s.flagRate > 0.5 ? C.red : C.muted, fontWeight: s.flagRate > 0.5 ? 600 : 400 }}>
@@ -1627,7 +1669,7 @@ function CalibrationStatus({ verdicts }: { verdicts: UserVerdict[] }) {
 // Section 9: Activity Log
 // ═══════════════════════════════════════
 
-function ActivityLog({ records }: { records: ForensicRecord[] }) {
+function ActivityLog({ records, locale }: { records: ForensicRecord[]; locale: DashboardLocale }) {
   const [authorFilter, setAuthorFilter] = useState<string | null>(null);
   const [platformFilter, setPlatformFilter] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -1735,7 +1777,7 @@ function ActivityLog({ records }: { records: ForensicRecord[] }) {
                 background: expanded ? C.cardHover : 'transparent',
               }}
             >
-              <span style={{ fontSize: 12, color: C.muted }}>{relativeTime(r.timestamp)}</span>
+              <span style={{ fontSize: 12, color: C.muted }}>{relativeTime(r.timestamp, locale)}</span>
               <span>
                 <span style={{
                   fontSize: 11,
@@ -1764,7 +1806,7 @@ function ActivityLog({ records }: { records: ForensicRecord[] }) {
                 ))}
               </span>
               <span style={{ fontSize: 12, color: C.textSecondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {r.author || '—'}
+                {(r.author && r.author !== 'unknown') ? r.author : dt(locale, 'unknown')}
               </span>
               <span style={{ textAlign: 'right' }}>
                 <SeverityBadge score={r.overallScore} />
@@ -1842,7 +1884,7 @@ function ActivityLog({ records }: { records: ForensicRecord[] }) {
                 {/* Metadata row */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 11, color: C.muted }}>
                   <span>Platform: <strong style={{ color: C.textSecondary }}>{platformLabel(r.platform)}</strong></span>
-                  {r.author && <span>Author: <strong style={{ color: C.textSecondary }}>{r.author}</strong></span>}
+                  <span>{dt(locale, 'author')}: <strong style={{ color: C.textSecondary }}>{(r.author && r.author !== 'unknown') ? r.author : dt(locale, 'unknown')}</strong></span>
                   <span>AI: <strong style={{ color: C.textSecondary }}>{r.aiSource}</strong></span>
                   <span>Model: <strong style={{ color: C.textSecondary }}>{r.aiModel || 'N/A'}</strong></span>
                   <span>Provider: <strong style={{ color: C.textSecondary }}>{r.aiProvider || 'N/A'}</strong></span>
@@ -1866,7 +1908,7 @@ function ActivityLog({ records }: { records: ForensicRecord[] }) {
                       rel="noopener noreferrer"
                       style={{ fontSize: 12, color: C.teal, textDecoration: 'underline' }}
                     >
-                      View original post
+                      {dt(locale, 'viewOriginalPost')}
                     </a>
                   </div>
                 )}

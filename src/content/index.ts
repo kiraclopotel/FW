@@ -25,6 +25,34 @@ import { safeSendMessage } from './context-guard';
 let activeAdapter: PlatformAdapter | null = null;
 let queue: ProcessingQueue | null = null;
 
+function buildPostUrl(post: PostContent): string {
+  if (post.sourceUrl) return post.sourceUrl;
+
+  if (post.platform === 'twitter' && post.author && post.id) {
+    const handle = post.author.replace(/^@/, '');
+    if (/^[A-Za-z0-9_]+$/.test(handle)) {
+      return `https://x.com/${handle}/status/${post.id}`;
+    }
+  }
+  if (post.platform === 'facebook' && post.id) {
+    return `https://www.facebook.com/${post.id}`;
+  }
+  if (post.platform === 'instagram' && post.id) {
+    return `https://www.instagram.com/p/${post.id}/`;
+  }
+  if (post.platform === 'tiktok' && post.id && post.author && post.author !== 'unknown') {
+    const handle = post.author.replace(/^@/, '');
+    return `https://www.tiktok.com/@${handle}/video/${post.id}`;
+  }
+  if (post.platform === 'youtube' && post.id) {
+    return `https://www.youtube.com/watch?v=${post.id}`;
+  }
+  if (post.platform === 'reddit' && post.id) {
+    return `https://www.reddit.com/comments/${post.id}`;
+  }
+  return '';
+}
+
 function init(): void {
   try {
     const platform = detectCurrentPlatform();
@@ -110,13 +138,7 @@ function onProcessingResult(post: PostContent, result: PipelineResult): void {
       // Send forensic data to service worker for storage in extension-origin IndexedDB.
       // Content scripts run in the webpage's origin, so writing IndexedDB here would
       // be invisible to the dashboard (which runs in the extension origin).
-      let postUrl = '';
-      if (post.platform === 'twitter' && post.author && post.id) {
-        const handle = post.author.replace(/^@/, '');
-        if (/^[A-Za-z0-9_]+$/.test(handle)) {
-          postUrl = `https://x.com/${handle}/status/${post.id}`;
-        }
-      }
+      const postUrl = buildPostUrl(post);
 
       safeSendMessage({
         type: 'FORENSIC_LOG',

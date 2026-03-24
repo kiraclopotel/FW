@@ -24,5 +24,16 @@
   "about": "ABOUT",
   "aboutText": "Built to make manipulation visible. Never to censor.",
   "tokensUsed": "tokens used today",
-  "language": "Language"
+  "language": "Language",
+  "credits": "Credits",
+  "creditsRemaining": "credits remaining",
+  "usage": "Usage",
+  "checks": "Checks",
+  "fixed": "Fixed",
+  "tokens": "Tokens",
+  "cost": "Cost",
+  "today": "Today",
+  "allTime": "All time",
+  "noApiKeyConfigured": "No API key configured — go to Providers tab",
+  "viewDashboard": "View Dashboard"
 }
