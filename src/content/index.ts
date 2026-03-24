@@ -45,7 +45,7 @@ function init(): void {
     initEngagementControl(platform);
 
     // Video platforms: start the video pipeline (comment hiding, overlays)
-    if (platform === 'youtube' || platform === 'tiktok' || platform === 'instagram') {
+    if (platform === 'youtube' || platform === 'tiktok' || platform === 'instagram' || platform === 'facebook') {
       initVideoPipeline(platform);
     }
 
@@ -62,7 +62,7 @@ async function onPostDetected(post: PostContent): Promise<void> {
   // (metric hiding, comment replacement, input blocking).
   // Text caption scanning adds zero value — it costs API calls and produces
   // no visible neutralization because the child sees educational content, not comments.
-  const isVideoPlatform = post.platform === 'tiktok' || post.platform === 'youtube' || post.platform === 'instagram';
+  const isVideoPlatform = post.platform === 'tiktok' || post.platform === 'youtube' || post.platform === 'instagram' || post.platform === 'facebook';
   if (isVideoPlatform) {
     const settings = await getSettings();
     if (settings.mode === 'child') {

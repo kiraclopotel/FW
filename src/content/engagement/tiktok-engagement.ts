@@ -140,7 +140,7 @@ function controlActionRail(mode: Mode, vc: VideoControls): void {
 
 // ─── Comment Section Control ───
 
-function controlCommentSection(mode: Mode): void {
+function controlCommentSection(mode: Mode, vc: VideoControls): void {
   const result = discoverContainer(document, COMMENT_SECTION_ANCHORS, COMMENT_SECTION_CONSTRAINTS);
   if (!result) return;
 
@@ -148,15 +148,22 @@ function controlCommentSection(mode: Mode): void {
   const current = element.dataset.fwCommentSection;
 
   if (mode === 'child') {
-    if (current === 'hidden') return;
-    element.dataset.fwCommentSection = 'hidden';
-    ensureStyleTag(COMMENT_SECTION_CSS_ID, `
-      [data-fw-comment-section="hidden"] {
-        display: none !important;
-        visibility: hidden !important;
-      }
-    `);
-    element.style.setProperty('display', 'none', 'important');
+    if (vc.childCommentMode === 'educational') {
+      // Mark for discovery but do NOT hide — video pipeline injects educational overlay
+      if (current === 'educational') return;
+      element.dataset.fwCommentSection = 'educational';
+    } else {
+      // childCommentMode === 'hidden' — hide entirely
+      if (current === 'hidden') return;
+      element.dataset.fwCommentSection = 'hidden';
+      ensureStyleTag(COMMENT_SECTION_CSS_ID, `
+        [data-fw-comment-section="hidden"] {
+          display: none !important;
+          visibility: hidden !important;
+        }
+      `);
+      element.style.setProperty('display', 'none', 'important');
+    }
   } else if (mode === 'teen') {
     if (current === 'teen-discovered') return;
     element.dataset.fwCommentSection = 'teen-discovered';
@@ -277,7 +284,7 @@ export function startTikTokEngagementControl(mode: Mode, vc: VideoControls): () 
 
   function runAll(): void {
     controlActionRail(mode, vc);
-    controlCommentSection(mode);
+    controlCommentSection(mode, vc);
     if (shouldBlockPosting) {
       blockTikTokCommentPosting();
     }

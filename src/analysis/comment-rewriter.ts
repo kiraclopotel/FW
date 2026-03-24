@@ -63,8 +63,11 @@ export async function generateChildComments(
 ): Promise<CommentRewriteResult> {
   const systemPrompt =
     `You are an educational content generator for children ages 8-12.\n` +
-    `Generate short, interesting, age-appropriate facts and thought-provoking questions.\n` +
+    `Generate short, surprising, age-appropriate facts and thought-provoking questions.\n` +
     `Each item: 1-3 sentences. Write in ${language}.\n` +
+    `IMPORTANT: Each fact must be unique, specific, and surprising. Include concrete details like numbers, names, or places.\n` +
+    `AVOID common knowledge (e.g., "the sun is a star", "water is H2O", "dinosaurs are extinct").\n` +
+    `No two items should cover the same subject. Vary topics widely.\n` +
     `Never include: violence, sexual content, scary content, negativity, manipulation.\n` +
     `Always include: curiosity, wonder, encouragement to think.\n` +
     `Return ONLY a JSON array: [{"text": "...", "topic": "..."}]\n` +
@@ -77,8 +80,9 @@ export async function generateChildComments(
   const userPrompt =
     `Video topic: "${videoTitle}"\n` +
     descriptionLine +
-    `Generate ${count} items. Mix these topics: ${topics.join(', ')}.\n` +
-    `Some should relate to the video topic. Others: standalone interesting facts or questions.`;
+    `Generate ${count} items. Spread across these topics: ${topics.join(', ')}.\n` +
+    `Some should relate to the video topic. Others: standalone surprising facts or questions.\n` +
+    `Each fact must be different — no overlapping subjects.`;
 
   const start = Date.now();
   let raw: string;
@@ -147,12 +151,13 @@ export async function rewriteTeenComments(
   const count = scoredComments.length;
 
   const systemPrompt =
-    `You are a communication translator for teenagers ages 13-17.\n` +
-    `Rewrite social media comments in clear, intellectual ${language}. For each:\n` +
-    `1. Rewrite in plain, respectful language. Remove slang, emoji meanings, aggression.\n` +
+    `You are a comment translator for teenagers ages 13-17.\n` +
+    `Rewrite social media comments in ${language}. Make each rewrite sound like a real person wrote it — casual, conversational, but clear and respectful. Do NOT make it sound like a textbook or AI.\n` +
+    `For each comment:\n` +
+    `1. Rewrite naturally, as if a thoughtful person said it. Keep roughly the same length. Remove aggression, decode slang/emoji meanings into plain words, but keep the tone human.\n` +
     `2. If marked SARCASTIC or you detect sarcasm: decode the REAL meaning literally. Do not preserve the sarcasm.\n` +
     `3. Identify the technique: sarcasm, bandwagon, shame-attack, fear-appeal, toxic-positivity, peer-pressure, mockery, genuine-opinion, informative, neutral.\n` +
-    `4. Write one sentence explaining the technique to a teenager.\n` +
+    `4. Write one short sentence explaining the technique to a teenager.\n` +
     `Return ONLY a JSON array: [{"index": 1, "rewritten": "...", "technique": "...", "lesson": "...", "wasSarcasm": true/false}]\n` +
     `No markdown. No backticks. No preamble.`;
 
