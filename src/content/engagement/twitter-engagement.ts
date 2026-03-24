@@ -6,6 +6,7 @@
 import type { AnchorSet, ContainerConstraints, DiscoveredContainer } from './container-discovery';
 import { discoverAllContainers } from './container-discovery';
 import type { Mode } from '../../types/mode';
+import type { VideoControls } from '../../storage/settings';
 
 // ─── Action Row (horizontal bar: reply, retweet, like, bookmark) ───
 
@@ -128,23 +129,51 @@ function discoverActionRows(): DiscoveredContainer[] {
 
 const NUMERIC_PATTERN = /^[\d,.KkMm]+$/;
 
-function controlTwitterActionRows(mode: Mode): void {
+function controlTwitterActionRows(mode: Mode, vc: VideoControls): void {
   const containers = discoverActionRows();
 
   for (const { element } of containers) {
     const current = element.dataset.fwActionRow;
 
     if (mode === 'child') {
-      if (current === 'hidden') continue;
-      element.dataset.fwActionRow = 'hidden';
-      ensureStyleTag(ACTION_ROW_CSS_ID, `
-        [data-fw-action-row="hidden"] {
-          display: none !important;
-          height: 0 !important;
-          overflow: hidden !important;
+      if (vc.childBlockActionsPlatforms.twitter) {
+        if (current === 'hidden') continue;
+        element.dataset.fwActionRow = 'hidden';
+        ensureStyleTag(ACTION_ROW_CSS_ID, `
+          [data-fw-action-row="hidden"] {
+            display: none !important;
+            height: 0 !important;
+            overflow: hidden !important;
+          }
+        `);
+        element.style.setProperty('display', 'none', 'important');
+      } else if (vc.childHideMetrics) {
+        // Keep row visible but hide counts (same as teen behavior)
+        if (current === 'neutralized') continue;
+        element.dataset.fwActionRow = 'neutralized';
+
+        const buttons = element.querySelectorAll<HTMLElement>(
+          'button[data-testid="reply"], button[data-testid="retweet"], ' +
+          'button[data-testid="like"], button[data-testid="bookmark"]',
+        );
+        for (const btn of buttons) {
+          const spans = btn.querySelectorAll<HTMLElement>('span');
+          for (const span of spans) {
+            const text = (span.textContent ?? '').trim();
+            if (text.length > 0 && (NUMERIC_PATTERN.test(text) || /^\d/.test(text))) {
+              span.style.setProperty('visibility', 'hidden', 'important');
+            }
+          }
         }
-      `);
-      element.style.setProperty('display', 'none', 'important');
+
+        const analyticsLinks = element.querySelectorAll<HTMLElement>('a[href*="/analytics"]');
+        for (const link of analyticsLinks) {
+          link.style.setProperty('display', 'none', 'important');
+        }
+      } else {
+        if (current === 'child-pass') continue;
+        element.dataset.fwActionRow = 'child-pass';
+      }
     } else if (mode === 'teen') {
       if (current === 'neutralized') continue;
       element.dataset.fwActionRow = 'neutralized';
@@ -208,7 +237,7 @@ function resetActionRowMarkers(): void {
 
 // ─── Main entry point ───
 
-export function startTwitterEngagementControl(mode: Mode): () => void {
+export function startTwitterEngagementControl(mode: Mode, vc: VideoControls): () => void {
   const surface = detectSurface();
   console.log(`[FW] Twitter engagement control started — surface: ${surface}, mode: ${mode}`);
 
@@ -222,11 +251,11 @@ export function startTwitterEngagementControl(mode: Mode): () => void {
       lastUrl = currentUrl;
       resetActionRowMarkers();
     }
-    controlTwitterActionRows(mode);
+    controlTwitterActionRows(mode, vc);
   }
 
   // Run immediately
-  controlTwitterActionRows(mode);
+  controlTwitterActionRows(mode, vc);
 
   // MutationObserver for dynamic content
   const observer = new MutationObserver(() => {

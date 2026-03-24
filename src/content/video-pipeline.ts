@@ -7,7 +7,6 @@ import type { Platform } from '../types/post';
 import type { Mode } from '../types/mode';
 import { getSettings } from '../storage/settings';
 import { safeSendMessage } from './context-guard';
-import { getCommentsContainer } from './platforms/metric-selectors';
 import { extractComments } from './platforms/comment-extractors';
 import { scoreAndRankComments } from '../analysis/comment-scorer';
 import { generateChildComments, rewriteTeenComments } from '../analysis/comment-rewriter';
@@ -17,6 +16,46 @@ import {
   removePlaceholder,
   removeOverlay,
 } from './comment-overlay';
+
+// ─── Comments container discovery (per-platform) ───
+
+function getCommentsContainer(platform: Platform): HTMLElement | null {
+  switch (platform) {
+    case 'youtube':
+      return document.querySelector<HTMLElement>('ytd-comments#comments');
+    case 'tiktok': {
+      const primary = document.querySelector<HTMLElement>('[data-e2e="comment-list"]');
+      if (primary && primary.children.length >= 1) return primary;
+
+      const commentPanel = document.querySelector<HTMLElement>(
+        '[data-e2e="comment-panel"], [data-e2e="browse-comment"], [class*="CommentPanel"]'
+      );
+      if (commentPanel) {
+        const ul = commentPanel.querySelector<HTMLElement>('ul');
+        if (ul && ul.children.length >= 1) return ul;
+      }
+
+      const allULs = document.querySelectorAll<HTMLElement>('ul');
+      for (const ul of allULs) {
+        if (ul.children.length < 2) continue;
+        if (ul.dataset.fwProcessed === 'true') continue;
+        let commentLike = 0;
+        for (const child of Array.from(ul.children).slice(0, 5)) {
+          if (child instanceof HTMLElement && child.querySelector('a[href*="/@"]')) {
+            commentLike++;
+          }
+        }
+        if (commentLike >= 2) return ul;
+      }
+
+      return null;
+    }
+    case 'instagram':
+      return document.querySelector<HTMLElement>('article ul[class]');
+    default:
+      return null;
+  }
+}
 
 // ─── Module-level state ───
 

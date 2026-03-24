@@ -85,8 +85,9 @@ export async function process(post: PostContent): Promise<PipelineResult> {
     const settings = await getSettings();
 
     // Step 0: Profanity filter — catch vulgar content before AI calls
-    const profanityResult = filterProfanity(post.text, settings.mode);
-    if (profanityResult.filtered && settings.mode === 'child') {
+    const forceFilter = settings.mode === 'adult' && settings.videoControls?.adultCleanLanguage;
+    const profanityResult = filterProfanity(post.text, settings.mode, { forceFilter });
+    if (profanityResult.filtered && (settings.mode === 'child' || forceFilter)) {
       console.log(`[FeelingWise] Pipeline: profanity detected for ${post.id}:`, profanityResult.matches);
       const cleanNeutralized: NeutralizedContent = {
         postId: post.id,

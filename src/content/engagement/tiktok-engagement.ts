@@ -5,6 +5,7 @@
 import type { AnchorSet, ContainerConstraints } from './container-discovery';
 import { discoverContainer, discoverAllContainers } from './container-discovery';
 import type { Mode } from '../../types/mode';
+import type { VideoControls } from '../../storage/settings';
 
 // ─── Action Rail (vertical strip: like, comment, share, bookmark) ───
 
@@ -91,22 +92,37 @@ const COUNT_SELECTORS = [
 
 // ─── Action Rail Control ───
 
-function controlActionRail(mode: Mode): void {
+function controlActionRail(mode: Mode, vc: VideoControls): void {
   const containers = discoverAllContainers(document, ACTION_RAIL_ANCHORS, ACTION_RAIL_CONSTRAINTS);
 
   for (const { element } of containers) {
     const current = element.dataset.fwActionRail;
 
     if (mode === 'child') {
-      if (current === 'hidden') continue;
-      element.dataset.fwActionRail = 'hidden';
-      ensureStyleTag(ACTION_RAIL_CSS_ID, `
-        [data-fw-action-rail="hidden"] {
-          display: none !important;
-          visibility: hidden !important;
+      const hideRail = vc.childBlockActions && vc.childBlockActionsPlatforms.tiktok;
+      if (hideRail) {
+        if (current === 'hidden') continue;
+        element.dataset.fwActionRail = 'hidden';
+        ensureStyleTag(ACTION_RAIL_CSS_ID, `
+          [data-fw-action-rail="hidden"] {
+            display: none !important;
+            visibility: hidden !important;
+          }
+        `);
+        element.style.setProperty('display', 'none', 'important');
+      } else if (vc.childHideMetrics) {
+        // Keep rail visible but hide counts (same as teen behavior)
+        if (current === 'neutralized') continue;
+        element.dataset.fwActionRail = 'neutralized';
+        for (const sel of COUNT_SELECTORS) {
+          element.querySelectorAll<HTMLElement>(sel).forEach(el => {
+            el.style.setProperty('visibility', 'hidden', 'important');
+          });
         }
-      `);
-      element.style.setProperty('display', 'none', 'important');
+      } else {
+        if (current === 'child-pass') continue;
+        element.dataset.fwActionRail = 'child-pass';
+      }
     } else if (mode === 'teen') {
       if (current === 'neutralized') continue;
       element.dataset.fwActionRail = 'neutralized';
@@ -256,32 +272,26 @@ function resetDataAttributes(): void {
 
 // ─── Main entry point ───
 
-export function startTikTokEngagementControl(mode: Mode): () => void {
-  // Run immediately
-  controlActionRail(mode);
-  controlCommentSection(mode);
-  if (mode === 'child') {
-    blockTikTokCommentPosting();
-  }
+export function startTikTokEngagementControl(mode: Mode, vc: VideoControls): () => void {
+  const shouldBlockPosting = mode === 'child' && vc.childBlockPosting;
 
-  // MutationObserver for dynamic content
-  const observer = new MutationObserver(() => {
-    controlActionRail(mode);
+  function runAll(): void {
+    controlActionRail(mode, vc);
     controlCommentSection(mode);
-    if (mode === 'child') {
+    if (shouldBlockPosting) {
       blockTikTokCommentPosting();
     }
-  });
+  }
+
+  // Run immediately
+  runAll();
+
+  // MutationObserver for dynamic content
+  const observer = new MutationObserver(() => runAll());
   observer.observe(document.body, { childList: true, subtree: true });
 
   // Polling fallback every 2 seconds
-  const interval = setInterval(() => {
-    controlActionRail(mode);
-    controlCommentSection(mode);
-    if (mode === 'child') {
-      blockTikTokCommentPosting();
-    }
-  }, 2000);
+  const interval = setInterval(runAll, 2000);
 
   // Return cleanup function
   return () => {
