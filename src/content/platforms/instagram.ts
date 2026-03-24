@@ -35,6 +35,7 @@ export class InstagramAdapter implements PlatformAdapter {
 
         const author = this._extractAuthor(article);
         const postId = this._extractPostId(article) ?? crypto.randomUUID();
+        const sourceUrl = this._extractPostUrl(article);
 
         article.dataset.fwProcessed = 'true';
 
@@ -46,6 +47,7 @@ export class InstagramAdapter implements PlatformAdapter {
           platform: 'instagram',
           domRef: new WeakRef(element),
           feedSource,
+          sourceUrl,
         });
       }
     });
@@ -144,6 +146,17 @@ export class InstagramAdapter implements PlatformAdapter {
       if (reelMatch) return reelMatch[1];
     }
     return null;
+  }
+
+  private _extractPostUrl(article: HTMLElement): string {
+    const links = article.querySelectorAll<HTMLAnchorElement>('a[href]');
+    for (const link of links) {
+      const href = link.getAttribute('href') ?? '';
+      if (href.includes('/p/') || href.includes('/reel/')) {
+        return href.startsWith('http') ? href : `https://www.instagram.com${href}`;
+      }
+    }
+    return '';
   }
 
   private _detectFeedSource(): FeedSource {

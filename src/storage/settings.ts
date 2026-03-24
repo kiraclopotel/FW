@@ -213,10 +213,12 @@ export async function trackTokenUsage(inputTokens: number, outputTokens: number,
   const totalNew = inputTokens + outputTokens;
 
   // Approximate cost per 1M tokens (in USD cents) — input/output averaged
+  const normalizedProvider = provider.toLowerCase();
   const costPer1M: Record<string, number> = {
     'deepseek': 8,     // ~$0.08/1M (89% cache hits at $0.028/1M + 11% misses at $0.28/1M)
     'anthropic': 80,   // ~$0.80/1M tokens (Haiku average)
     'openai': 15,      // ~$0.15/1M tokens (GPT-4o-mini average)
+    'aai': 15,         // alias used by some OpenAI-compatible wrappers
     'gemini': 10,      // ~$0.10/1M tokens (Flash average)
     'groq': 3,         // ~$0.03/1M tokens (Llama models on Groq)
     'mistral': 10,     // ~$0.10/1M tokens (Mistral Small average)
@@ -227,7 +229,7 @@ export async function trackTokenUsage(inputTokens: number, outputTokens: number,
     'managed': 0,
   };
 
-  const rate = costPer1M[provider] ?? 20;
+  const rate = costPer1M[normalizedProvider] ?? 20;
   const costCents = (totalNew / 1_000_000) * rate;
 
   await chrome.storage.local.set({

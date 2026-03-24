@@ -80,6 +80,7 @@ export class YoutubeAdapter implements PlatformAdapter {
         platform: 'youtube',
         domRef: new WeakRef(result.element),
         feedSource,
+        sourceUrl: this._extractCommentUrl(container),
       });
     }
   }
@@ -115,6 +116,7 @@ export class YoutubeAdapter implements PlatformAdapter {
         platform: 'youtube',
         domRef: new WeakRef(result.element),
         feedSource,
+        sourceUrl: this._extractCommunityPostUrl(container),
       });
     }
   }
@@ -165,6 +167,7 @@ export class YoutubeAdapter implements PlatformAdapter {
         platform: 'youtube',
         domRef: new WeakRef(result.element),
         feedSource,
+        sourceUrl: `https://www.youtube.com/watch?v=${videoId}`,
       });
     }
   }
@@ -204,6 +207,17 @@ export class YoutubeAdapter implements PlatformAdapter {
     }
 
     return crypto.randomUUID();
+  }
+
+  private _extractCommentUrl(container: Element): string {
+    const link = container.querySelector<HTMLAnchorElement>('a[href*="lc="]');
+    if (!link?.href) return '';
+    return link.href;
+  }
+
+  private _extractCommunityPostUrl(container: Element): string {
+    const link = container.querySelector<HTMLAnchorElement>('a[href*="/post/"]');
+    return link?.href ?? '';
   }
 
   private _extractVideoId(): string {

@@ -31,6 +31,7 @@ export class TiktokAdapter implements PlatformAdapter {
         if (text.length < 30) continue;
 
         item.element.dataset.fwProcessed = 'true';
+        const sourceUrl = this._extractVideoUrl(item.element, item.id);
 
         posts.push({
           id: item.id,
@@ -40,6 +41,7 @@ export class TiktokAdapter implements PlatformAdapter {
           platform: 'tiktok',
           domRef: new WeakRef(item.element),
           feedSource,
+          sourceUrl,
         });
       }
     });
@@ -201,6 +203,18 @@ export class TiktokAdapter implements PlatformAdapter {
   private _extractVideoIdFromUrl(): string | null {
     const match = window.location.pathname.match(/\/video\/(\d+)/);
     return match?.[1] ?? null;
+  }
+
+  private _extractVideoUrl(container: HTMLElement, id: string): string {
+    const direct = container.querySelector<HTMLAnchorElement>('a[href*="/video/"]')?.getAttribute('href') ?? '';
+    if (direct) {
+      return direct.startsWith('http') ? direct : `https://www.tiktok.com${direct}`;
+    }
+    const author = this._extractFeedAuthor(container).replace(/^@/, '');
+    if (author && author !== 'unknown') {
+      return `https://www.tiktok.com/@${author}/video/${id}`;
+    }
+    return '';
   }
 
   private _detectFeedSource(): FeedSource {
