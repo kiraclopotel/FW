@@ -31,13 +31,15 @@ function shouldControlEngagement(
     case 'child':
       switch (platform) {
         case 'twitter':
-          return vc.childBlockActionsPlatforms.twitter;
+          return vc.childBlockActionsPlatforms.twitter || vc.childHideMetrics;
         case 'tiktok':
-          return vc.childBlockActions || vc.childHideMetrics;
+          return (vc.childBlockActions && vc.childBlockActionsPlatforms.tiktok)
+            || vc.childHideMetrics
+            || vc.childBlockPosting;
         case 'instagram':
-          return vc.childBlockActionsPlatforms.instagram;
+          return vc.childBlockActionsPlatforms.instagram || vc.childHideMetrics;
         case 'facebook':
-          return vc.childBlockActionsPlatforms.facebook;
+          return vc.childBlockActionsPlatforms.facebook || vc.childHideMetrics;
         default:
           return false;
       }
@@ -110,12 +112,12 @@ function resetEngagementDOM(): void {
 
 // ─── Platform Routing ───
 
-function startPlatformEngagement(platform: Platform, mode: Mode): () => void {
+function startPlatformEngagement(platform: Platform, mode: Mode, vc: VideoControls): () => void {
   switch (platform) {
     case 'tiktok':
-      return startTikTokEngagementControl(mode);
+      return startTikTokEngagementControl(mode, vc);
     case 'twitter':
-      return startTwitterEngagementControl(mode);
+      return startTwitterEngagementControl(mode, vc);
     default:
       console.log(
         `[FeelingWise] Engagement control: not yet implemented for ${platform}`,
@@ -140,7 +142,7 @@ export async function initEngagementControl(
   let activeCleanup: () => void = () => {};
 
   if (shouldControlEngagement(platform, mode, videoControls)) {
-    activeCleanup = startPlatformEngagement(platform, mode);
+    activeCleanup = startPlatformEngagement(platform, mode, videoControls);
   }
 
   // Listen for runtime settings changes
@@ -168,7 +170,7 @@ export async function initEngagementControl(
 
     // 4. Start new mode (or no-op)
     if (shouldControlEngagement(platform, mode, newSettings.videoControls)) {
-      activeCleanup = startPlatformEngagement(platform, mode);
+      activeCleanup = startPlatformEngagement(platform, mode, newSettings.videoControls);
     } else {
       activeCleanup = () => {};
     }

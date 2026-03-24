@@ -82,10 +82,17 @@ function matchesWordList(word: string, wordSet: Set<string>): string | null {
 
 // ─── Main filter ───
 
-export function filterProfanity(text: string, mode: Mode): ProfanityResult {
-  if (mode === 'adult') {
+export function filterProfanity(
+  text: string,
+  mode: Mode,
+  opts?: { forceFilter?: boolean },
+): ProfanityResult {
+  if (mode === 'adult' && !opts?.forceFilter) {
     return { filtered: false, cleanText: text, matches: [] };
   }
+
+  // Replace text for child mode, or adult mode when forced (adultCleanLanguage)
+  const shouldReplace = mode === 'child' || (mode === 'adult' && !!opts?.forceFilter);
 
   const matches: string[] = [];
   // Split on word boundaries, preserving separators for reconstruction
@@ -103,7 +110,7 @@ export function filterProfanity(text: string, mode: Mode): ProfanityResult {
 
     if (match) {
       matches.push(match);
-      if (mode === 'child') {
+      if (shouldReplace) {
         // Replace with asterisks of same length
         return '*'.repeat(part.length);
       }
@@ -116,7 +123,7 @@ export function filterProfanity(text: string, mode: Mode): ProfanityResult {
 
   return {
     filtered: matches.length > 0,
-    cleanText: mode === 'child' ? cleanParts.join('') : text,
+    cleanText: shouldReplace ? cleanParts.join('') : text,
     matches,
   };
 }
