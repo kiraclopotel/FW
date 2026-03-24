@@ -86,6 +86,8 @@ export function removeOverlay(commentsContainer: HTMLElement): void {
   for (const el of overlays) {
     el.remove();
   }
+  // Restore original container visibility (overlay hid it)
+  commentsContainer.style.removeProperty('display');
 }
 
 // --- Child mode: educational overlay ---
@@ -160,6 +162,9 @@ export function injectChildEducationalOverlay(
 
     overlay.appendChild(card);
   }
+
+  // Hide original comments — overlay replaces them visually
+  commentsContainer.style.setProperty('display', 'none', 'important');
 
   // Insert as sibling AFTER container, not as child
   commentsContainer.insertAdjacentElement('afterend', overlay);
@@ -356,6 +361,9 @@ export function injectTeenRewrittenComments(
 
     overlay.appendChild(card);
   }
+
+  // Hide original comments — overlay replaces them visually
+  commentsContainer.style.setProperty('display', 'none', 'important');
 
   // Insert as sibling AFTER container, not as child
   commentsContainer.insertAdjacentElement('afterend', overlay);

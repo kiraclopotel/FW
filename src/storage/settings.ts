@@ -25,6 +25,7 @@ export interface VideoControls {
   teenShowLessons: boolean;
   adultCleanLanguage: boolean;
   adultHideMetrics: boolean;
+  adultBlockComments: boolean;
   commentAnalysisCount: number;
   educationalTopics: EducationalTopic[];
 }
@@ -113,6 +114,7 @@ const DEFAULTS: FWSettings = {
     teenShowLessons: true,
     adultCleanLanguage: false,
     adultHideMetrics: false,
+    adultBlockComments: false,
     commentAnalysisCount: 15,
     educationalTopics: ['science', 'nature', 'history', 'math', 'languages', 'philosophy'],
   },

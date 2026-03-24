@@ -93,24 +93,35 @@ function extractTikTokComments(): RawComment[] {
   const children = Array.from(container.children) as HTMLElement[];
   const comments: RawComment[] = [];
 
+  // Known UI labels to skip (multi-language)
+  const UI_LABEL = /^(Reply|Răspunde|Replies|Pinned|Fixat|Like|Share|Report|Vezi .* de r[aă]spunsuri|See \d+ repl|View \d+ repl|\u2026)$/i;
+
   for (const child of children) {
     // Skip non-comment elements (loading spinners, etc.)
     if (child.childElementCount === 0) continue;
 
-    // Text: find the longest text node within the comment block
+    // Extract author FIRST so we can exclude it from comment text search
+    const authorLink = child.querySelector('a[href*="/@"]');
+    const authorHandle = authorLink?.textContent?.trim() ?? '';
+
+    // Text: find the longest NON-author, NON-UI text node
     const textNodes = child.querySelectorAll('span, p, div');
     let text = '';
     for (const node of textNodes) {
       const content = node.textContent?.trim() ?? '';
+      if (!content || content.length < 2) continue;
+      // Skip if matches author handle
+      if (authorHandle && content === authorHandle) continue;
+      // Skip numeric-only (like counts, timestamps)
+      if (/^[\d,.KkMm\s]+$/.test(content)) continue;
+      // Skip known UI labels
+      if (UI_LABEL.test(content)) continue;
+      // Pick longest remaining
       if (content.length > text.length) {
         text = content;
       }
     }
     if (!text) continue;
-
-    // Author: element with link to user profile
-    const authorLink = child.querySelector('a[href*="/@"]');
-    const authorHandle = authorLink?.textContent?.trim() ?? '';
 
     // Like count: look for a number near a heart/like element
     let likes = 0;
