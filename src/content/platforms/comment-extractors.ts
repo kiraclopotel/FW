@@ -184,6 +184,61 @@ function extractInstagramComments(): RawComment[] {
   return comments;
 }
 
+// --- Facebook ---
+
+function extractFacebookComments(): RawComment[] {
+  // Facebook comments live inside UL elements within article containers
+  const articles = document.querySelectorAll<HTMLElement>('div[role="article"]');
+  const comments: RawComment[] = [];
+
+  for (const article of articles) {
+    const lists = article.querySelectorAll<HTMLElement>('ul');
+    for (const ul of lists) {
+      const items = ul.querySelectorAll<HTMLElement>(':scope > li');
+      if (items.length < 1) continue;
+
+      for (const item of items) {
+        // Author: link with profile-like href
+        const authorLink = item.querySelector<HTMLAnchorElement>('a[role="link"]');
+        const authorHandle = authorLink?.textContent?.trim() ?? '';
+        if (!authorHandle) continue;
+
+        // Text: longest div[dir="auto"] that isn't the author name
+        const textNodes = item.querySelectorAll<HTMLElement>('div[dir="auto"]');
+        let text = '';
+        for (const node of textNodes) {
+          const content = node.textContent?.trim() ?? '';
+          if (content.length > text.length && content !== authorHandle) {
+            text = content;
+          }
+        }
+        if (!text || text.length < 3) continue;
+
+        // Like count: look for aria-label with "like" and a number
+        let likes = 0;
+        const likeEl = item.querySelector<HTMLElement>('[aria-label*="like" i]');
+        if (likeEl) {
+          const match = likeEl.getAttribute('aria-label')?.match(/(\d+)/);
+          if (match) likes = parseInt(match[1], 10);
+        }
+
+        comments.push({
+          text,
+          likes,
+          replies: 0,
+          isPinned: false,
+          isCreatorReply: false,
+          isHighlighted: false,
+          authorHandle,
+          timestamp: '',
+        });
+      }
+    }
+  }
+
+  return comments;
+}
+
 // --- Main entry point ---
 
 export function extractComments(platform: string): RawComment[] {
@@ -195,6 +250,8 @@ export function extractComments(platform: string): RawComment[] {
         return extractTikTokComments();
       case 'instagram':
         return extractInstagramComments();
+      case 'facebook':
+        return extractFacebookComments();
       default:
         return [];
     }

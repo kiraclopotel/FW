@@ -52,6 +52,25 @@ function getCommentsContainer(platform: Platform): HTMLElement | null {
     }
     case 'instagram':
       return document.querySelector<HTMLElement>('article ul[class]');
+    case 'facebook': {
+      // Facebook comments are inside UL elements within article containers
+      const articles = document.querySelectorAll<HTMLElement>('div[role="article"]');
+      for (const article of articles) {
+        const lists = article.querySelectorAll<HTMLElement>('ul');
+        for (const ul of lists) {
+          if (ul.children.length < 2) continue;
+          // Check if children look like comments (have author links and text)
+          let commentLike = 0;
+          for (const child of Array.from(ul.children).slice(0, 5)) {
+            if (child instanceof HTMLElement && child.querySelector('a[role="link"]')) {
+              commentLike++;
+            }
+          }
+          if (commentLike >= 2) return ul;
+        }
+      }
+      return null;
+    }
     default:
       return null;
   }
