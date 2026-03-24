@@ -1,40 +1,28 @@
 // FeelingWise - Video Pipeline Orchestrator
-// Wires together comment detection, hiding, extraction, AI rewriting, and injection
+// Handles comment CONTENT only: detection → extraction → AI rewriting → overlay injection
 // for video-first platforms (YouTube, TikTok, Instagram).
-//
-// TWO INDEPENDENT PATHS:
-// Path A (immediate): Comment posting block + action button blocking → runs on page load
-// Path B (deferred):  Comment replacement/rewriting → runs when comment container appears
+// All engagement hiding/blocking is handled by the engagement controller.
 
 import type { Platform } from '../types/post';
 import type { Mode } from '../types/mode';
 import { getSettings } from '../storage/settings';
-import { safeSendMessage, isContextAlive } from './context-guard';
+import { safeSendMessage } from './context-guard';
 import { getCommentsContainer } from './platforms/metric-selectors';
 import { getDiscoveredCommentsContainer } from './platforms/dom-scanner';
 import { extractComments } from './platforms/comment-extractors';
 import { scoreAndRankComments } from '../analysis/comment-scorer';
 import { generateChildComments, rewriteTeenComments } from '../analysis/comment-rewriter';
 import {
-  hideCommentsImmediately,
-  hideTikTokCommentsDirectCSS,
-  blockCommentPosting,
-} from './video-comment-injector';
-import {
   injectChildEducationalOverlay,
   injectTeenRewrittenComments,
+  removePlaceholder,
+  removeOverlay,
 } from './comment-overlay';
 
 // ─── Module-level state ───
 
 let cachedMode: Mode = 'child'; // Safest default for synchronous access
 let currentPipelineId = '';
-let actionPollTimer: ReturnType<typeof setInterval> | null = null;
-let tiktokChildCleanup: (() => void) | null = null;
-
-function getCachedMode(): Mode {
-  return cachedMode;
-}
 
 // --- Video metadata extraction ---
 
@@ -95,49 +83,7 @@ function logScanEvent(
   });
 }
 
-// ─── Immediate actions (posting block) ───
-// These run ON PAGE LOAD. No dependency on comments existing.
-// Action button blocking is handled by action-blocker.ts (centralized, all platforms).
-
-async function runImmediateActions(platform: Platform): Promise<void> {
-  const settings = await getSettings();
-  const mode = settings.mode;
-  const { videoControls } = settings;
-
-  if (mode === 'child' && videoControls.childBlockPosting) {
-    blockCommentPosting(platform);
-  }
-}
-
-// ─── Comment posting polling ───
-// TikTok/Instagram load new elements when user swipes/scrolls.
-// Re-check every 2 seconds to block comment posting inputs.
-// Action button blocking is handled by action-blocker.ts.
-
-function startPostingPolling(platform: Platform): void {
-  if (actionPollTimer) return; // Already running
-
-  actionPollTimer = setInterval(async () => {
-    if (!isContextAlive()) { stopPostingPolling(); return; }
-    try {
-      const settings = await getSettings();
-      if (settings.mode === 'child' && settings.videoControls.childBlockPosting) {
-        blockCommentPosting(platform);
-      }
-    } catch {
-      // Non-critical — polling failure should never break anything
-    }
-  }, 2000);
-}
-
-function stopPostingPolling(): void {
-  if (actionPollTimer) {
-    clearInterval(actionPollTimer);
-    actionPollTimer = null;
-  }
-}
-
-// ─── Comment pipeline (deferred — runs when comment container appears) ───
+// ─── Comment pipeline (runs when comment container appears) ───
 
 async function runCommentPipeline(
   platform: Platform,
@@ -152,7 +98,7 @@ async function runCommentPipeline(
   const { videoControls, locale } = settings;
   const language = locale === 'ro' ? 'Romanian' : 'English';
 
-  // Child hidden mode — container stays hidden from hideCommentsImmediately
+  // Child hidden mode — engagement controller already hides the container
   if (mode === 'child' && videoControls.childCommentMode === 'hidden') {
     logScanEvent(platform, 'comments-hidden', videoTitle);
     return;
@@ -170,17 +116,10 @@ async function runCommentPipeline(
 
   if (currentPipelineId !== pipelineId) return; // Stale check
 
-  let container: HTMLElement | null;
-  if (platform === 'tiktok') {
-    // TikTok: find the comment area using the actual DOM structure
-    container = document.querySelector<HTMLElement>(
-      '[data-e2e="comment-panel"], [data-e2e="browse-comment"]'
-    );
-    if (!container) {
-      const firstComment = document.querySelector<HTMLElement>('[data-e2e="comment-level-1"]');
-      container = firstComment?.parentElement ?? null;
-    }
-  } else {
+  // Prefer container already discovered by engagement controller
+  let container: HTMLElement | null =
+    document.querySelector<HTMLElement>('[data-fw-comment-section]');
+  if (!container) {
     container = getCommentsContainer(platform) ?? getDiscoveredCommentsContainer(platform);
   }
   if (!container) {
@@ -240,12 +179,6 @@ async function runCommentPipeline(
 // --- SPA navigation handling ---
 
 function onNavigate(platform: Platform): void {
-  // Clean up TikTok child mode direct CSS + observer
-  if (tiktokChildCleanup) {
-    tiktokChildCleanup();
-    tiktokChildCleanup = null;
-  }
-
   // Remove any injected overlays from previous video (both old and new class names)
   document.querySelectorAll('.fw-overlay, .fw-comment-overlay, .fw-comments-placeholder').forEach(el => el.remove());
 
@@ -303,14 +236,10 @@ export function initVideoPipeline(platform: Platform): () => void {
 
   console.log(`[FeelingWise] Video pipeline initializing for ${platform}`);
 
-  // ═══ PATH A: Immediate actions (don't wait for comments) ═══
+  // Load settings so cachedMode is available for pipeline decisions
   getSettings().then(settings => {
     cachedMode = settings.mode;
     modeReady = true;
-    // Run immediately
-    runImmediateActions(platform);
-    // Start polling for comment posting block (catches swipe-to-new-video)
-    startPostingPolling(platform);
   });
 
   // Listen for settings changes so cachedMode stays current
@@ -318,56 +247,27 @@ export function initVideoPipeline(platform: Platform): () => void {
     if (changes.mode) {
       cachedMode = changes.mode.newValue as Mode;
       console.log('[FeelingWise] Mode changed to:', cachedMode);
-      runImmediateActions(platform);
     }
   };
   chrome.storage.onChanged.addListener(storageListener);
 
-  // ═══ PATH B: Comment detection (wait for container to appear) ═══
+  // ═══ Comment detection (wait for container to appear) ═══
   function tryDetectComments(): void {
     if (!modeReady) return; // Wait until settings have loaded to avoid defaulting to child mode
 
-    // TikTok child mode: use direct CSS targeting, bypass container detection entirely
-    if (platform === 'tiktok' && getCachedMode() === 'child') {
-      if (!tiktokChildCleanup) {
-        tiktokChildCleanup = hideTikTokCommentsDirectCSS();
-        blockCommentPosting('tiktok');
-        const title = getCurrentVideoTitle('tiktok');
-        logScanEvent('tiktok', 'comments-hidden', title);
-        console.log('[FeelingWise] TikTok child mode: comments hidden via direct CSS targeting');
-
-        // Also run the educational pipeline if configured
-        getSettings().then(s => {
-          if (s.videoControls.childCommentMode === 'educational') {
-            const desc = getCurrentVideoDescription('tiktok');
-            runCommentPipeline('tiktok', title, desc)
-              .catch(err => console.error('[FeelingWise] Comment pipeline error:', err));
-          }
-        });
-      }
-      return; // Skip all container-based logic
+    // Prefer container already discovered by engagement controller
+    let container: HTMLElement | null =
+      document.querySelector<HTMLElement>('[data-fw-comment-section]');
+    if (!container) {
+      container = getCommentsContainer(platform) ?? getDiscoveredCommentsContainer(platform);
     }
-
-    const container = getCommentsContainer(platform) ?? getDiscoveredCommentsContainer(platform);
     if (!container) return;
     if (container.dataset.fwProcessed === 'true') return;
 
     container.dataset.fwProcessed = 'true';
     console.log(`[FeelingWise] Comments container detected on ${platform}`);
 
-    // HIDE IMMEDIATELY (synchronous — before any async work)
-    const mode = getCachedMode();
-    if (mode === 'child' || mode === 'teen') {
-      hideCommentsImmediately(container, mode);
-      console.log(`[FeelingWise] After hideCommentsImmediately, fwHidden: ${container.dataset.fwHidden}, mode: ${mode}`);
-    }
-
-    // Block comment posting immediately — child mode protects first
-    if (mode === 'child') {
-      blockCommentPosting(platform);
-    }
-
-    // Run comment pipeline (async — container is already hidden)
+    // Run comment pipeline (engagement controller handles hiding/blocking)
     const title = getCurrentVideoTitle(platform);
     const desc = getCurrentVideoDescription(platform);
     runCommentPipeline(platform, title, desc)
@@ -398,8 +298,6 @@ export function initVideoPipeline(platform: Platform): () => void {
   const handleNav = () => {
     onNavigate(platform);
     fallbackAttempts = 0;
-    // Re-run immediate actions for the new video
-    runImmediateActions(platform);
     // Reset comment fallback polling
     if (!fallbackTimer) {
       fallbackTimer = setInterval(() => {
@@ -422,17 +320,12 @@ export function initVideoPipeline(platform: Platform): () => void {
   }
 
   return () => {
-    if (tiktokChildCleanup) {
-      tiktokChildCleanup();
-      tiktokChildCleanup = null;
-    }
     observer?.disconnect();
     observer = null;
     if (fallbackTimer !== null) {
       clearInterval(fallbackTimer);
       fallbackTimer = null;
     }
-    stopPostingPolling();
     cleanupNavigation();
     chrome.storage.onChanged.removeListener(storageListener);
     if (platform === 'youtube') {
