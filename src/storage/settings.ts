@@ -7,11 +7,19 @@ export type EducationalTopic =
   | 'science' | 'nature' | 'history' | 'math'
   | 'languages' | 'philosophy' | 'arts' | 'technology';
 
+export interface BlockActionsPlatforms {
+  tiktok: boolean;
+  instagram: boolean;
+  facebook: boolean;
+  twitter: boolean;
+}
+
 export interface VideoControls {
   childCommentMode: 'hidden' | 'educational';
   childHideMetrics: boolean;
   childBlockPosting: boolean;
   childBlockActions: boolean;
+  childBlockActionsPlatforms: BlockActionsPlatforms;
   teenRewriteComments: boolean;
   teenHideMetrics: boolean;
   teenShowLessons: boolean;
@@ -94,6 +102,12 @@ const DEFAULTS: FWSettings = {
     childHideMetrics: true,
     childBlockPosting: true,
     childBlockActions: true,
+    childBlockActionsPlatforms: {
+      tiktok: true,
+      instagram: true,
+      facebook: true,
+      twitter: true,
+    },
     teenRewriteComments: true,
     teenHideMetrics: true,
     teenShowLessons: true,
@@ -119,6 +133,16 @@ export async function getSettings(): Promise<FWSettings> {
     // Migration: add videoControls defaults for existing users
     if (!settings.videoControls) {
       settings.videoControls = { ...DEFAULTS.videoControls };
+    }
+
+    // Migration: add per-platform action blocking toggles
+    if (!settings.videoControls.childBlockActionsPlatforms) {
+      settings.videoControls.childBlockActionsPlatforms = {
+        tiktok: settings.videoControls.childBlockActions,
+        instagram: settings.videoControls.childBlockActions,
+        facebook: settings.videoControls.childBlockActions,
+        twitter: settings.videoControls.childBlockActions,
+      };
     }
 
     // Reset daily counters if new day
