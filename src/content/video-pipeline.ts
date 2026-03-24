@@ -18,10 +18,12 @@ import { generateChildComments, rewriteTeenComments } from '../analysis/comment-
 import {
   hideCommentsImmediately,
   hideTikTokCommentsDirectCSS,
-  injectChildEducationalOverlay,
-  injectTeenRewrittenComments,
   blockCommentPosting,
 } from './video-comment-injector';
+import {
+  injectChildEducationalOverlay,
+  injectTeenRewrittenComments,
+} from './comment-overlay';
 
 // ─── Module-level state ───
 
