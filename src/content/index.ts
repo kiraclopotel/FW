@@ -19,6 +19,7 @@ import { getSettings } from '../storage/settings';
 import { injectIntoElement } from './injector';
 import { ProcessingQueue } from './queue';
 import { initVideoPipeline } from './video-pipeline';
+import { initEngagementControl } from './engagement/controller';
 import { safeSendMessage } from './context-guard';
 
 let activeAdapter: PlatformAdapter | null = null;
@@ -39,6 +40,9 @@ function init(): void {
     queue = new ProcessingQueue(processPipeline, onProcessingResult);
     const interceptor = new ContentInterceptor(adapter, onPostDetected);
     interceptor.start();
+
+    // Engagement control: metric hiding, action rail/row suppression
+    initEngagementControl(platform);
 
     // Video platforms: start the video pipeline (comment hiding, overlays)
     if (platform === 'youtube' || platform === 'tiktok' || platform === 'instagram') {
